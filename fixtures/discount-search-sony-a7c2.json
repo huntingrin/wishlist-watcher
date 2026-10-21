@@ -1,0 +1,44 @@
+{
+  "error_code": 0,
+  "error_msg": "Success",
+  "data": {
+    "rows": [
+      {
+        "title": "限江浙沪粤：索尼 Alpha 7C II（A7C2） 全画幅微单相机 单机身",
+        "url": "https://www.smzdm.com/p/184418835",
+        "price": "7996.11",
+        "page_price": "10699",
+        "digital_price": "7996.11",
+        "mall_name": "天猫精选",
+        "brand_name": "SONY/索尼",
+        "bl_reason": "限江浙沪粤，需叠加平台补贴",
+        "product_buy_step": "领券后加购，结算页确认地区资格",
+        "article_id": "184418835"
+      },
+      {
+        "title": "国家补贴、88VIP、移动端：索尼 A7C2 腾龙28-200mm镜头套装 微单相机",
+        "url": "https://www.smzdm.com/p/184129254",
+        "price": "10269.55",
+        "page_price": "13999",
+        "digital_price": "10269.55",
+        "mall_name": "天猫精选",
+        "brand_name": "SONY/索尼",
+        "bl_reason": "需 88VIP 与国家补贴资格",
+        "product_buy_step": "移动端领券后结算",
+        "article_id": "184129254"
+      },
+      {
+        "title": "索尼 A7C2全画幅微单相机索尼a7c2代3300万像素4K视频直播",
+        "url": "https://www.smzdm.com/p/184073839",
+        "price": "8199",
+        "page_price": "",
+        "digital_price": "8199",
+        "mall_name": "拼多多",
+        "brand_name": "SONY/索尼",
+        "bl_reason": "百亿补贴",
+        "product_buy_step": "直接下单",
+        "article_id": "184073839"
+      }
+    ]
+  }
+}

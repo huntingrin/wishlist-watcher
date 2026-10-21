@@ -1,0 +1,4 @@
+interface:
+  display_name: "心愿单盯价"
+  short_description: "把想买但再等等的商品变成长期监控，到目标价或跌破自入库最低价时带理由提醒"
+  default_prompt: "使用 $wishlist-watcher 帮我盯住想买的商品，确认候选并设置目标价，在值得买时提醒我。"

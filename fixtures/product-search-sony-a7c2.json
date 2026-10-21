@@ -1,0 +1,41 @@
+{
+  "error_code": 0,
+  "error_msg": "Success",
+  "data": {
+    "rows": [
+      {
+        "title": "【补贴15%】Sony/索尼a7c2相机A7CM2全画幅微单相机ILCE-7CM2",
+        "url": "https://www.smzdm.com/p/184418835",
+        "main_picture": "https://example.com/a7c2-tmall.jpg",
+        "page_price": 13999,
+        "price": "¥9842.15",
+        "price_tags": [
+          {"title": "常卖价", "price": "¥11379.00"},
+          {"title": "历史最低", "price": "¥9672.15"},
+          {"title": "30天最低", "price": "¥9672.15"}
+        ],
+        "mall_name": "天猫精选",
+        "brand_name": "Sony/索尼",
+        "shop_name": "天猫数码家电自营旗舰店"
+      },
+      {
+        "title": "索尼（SONY）A7C2全画幅微单数码相机 A7CM2 A7C二代 AI智能对焦4K视频vlog直播相机7C2 A7C2二代黑色机身",
+        "url": "https://www.smzdm.com/p/184073839",
+        "main_picture": "https://example.com/a7c2-jd.jpg",
+        "page_price": 10129,
+        "price": "¥8531.45",
+        "price_tags": [
+          {"title": "常卖价", "price": "¥10783.00"},
+          {"title": "历史最低", "price": "¥8609.65"},
+          {"title": "30天最低", "price": "¥8609.65"},
+          {"title": "618价", "price": "¥11512.20"},
+          {"title": "大促价", "price": "¥11512.20"},
+          {"title": "低于大促价", "price": ""}
+        ],
+        "mall_name": "京东",
+        "brand_name": "索尼（SONY）",
+        "shop_name": "索尼（SONY）影像京东自营专区"
+      }
+    ]
+  }
+}

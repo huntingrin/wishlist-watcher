@@ -1,0 +1,11 @@
+.env.local
+.env
+__pycache__/
+*.pyc
+.DS_Store
+dist/
+*.zip
+proxy/node_modules/
+proxy/.dev.vars
+proxy/.wrangler/
+proxy/dist/

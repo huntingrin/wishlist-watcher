@@ -1,0 +1,3 @@
+# Local development only. Never commit this file.
+HAINA_API_KEY=
+PROXY_TOKENS={"replace-with-a-long-random-invite-token":"tester-a"}
