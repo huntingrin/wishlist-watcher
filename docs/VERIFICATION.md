@@ -128,7 +128,16 @@ npx wrangler deploy --dry-run --outdir dist
 
 本地 mock 代理验证：`WISHLIST_PROXY_URL` + `WISHLIST_PROXY_TOKEN` 指向本地 HTTP mock，`doctor --network` 返回 `mode=proxy`、`ok=true`，client 使用 `Bearer` 头和代理路径。
 
-尚未部署：需要 Cloudflare 账号登录、创建 Worker、设置 `HAINA_API_KEY` 和 `PROXY_TOKENS` 两个 secret。代码和部署步骤见 `proxy/README.md`。
+本地 `wrangler dev --local` 验证：`/healthz` 200；带邀请 token 的 `/v1/product/search` 返回 200、2 条真实海纳商品；`_meta.remaining=1999`，缓存/限流生效。
+
+## 已部署
+
+- Worker：`https://wishlist-watcher-proxy.huntingrin.workers.dev`
+- Cloudflare 账号：`huntingrin@gmail.com`
+- secrets：`HAINA_API_KEY`、`PROXY_TOKENS`（已通过 Cloudflare API 确认名称存在，值未记录）
+- 部署版本：`cbda3372-02cc-4dbd-9840-735c40ee1f2a`
+
+部署后从当前开发网络访问 `workers.dev` 出现 TLS handshake failure/timeout，未能从这台机器完成公网 smoke test；需要用内测用户网络或自定义域名复测。Worker 本地运行和 Cloudflare 部署本身均已成功。
 
 ## 已知未验证
 
@@ -136,3 +145,4 @@ npx wrangler deploy --dry-run --outdir dist
 - 多平台同款匹配、券/活动条件、图搜/截图录入属于 D4。
 - OpenCode 之外的宿主（Claude Code / Codex）实测属于 D5。
 - 主动定时推送未接入；当前依赖宿主调用 `check`。
+- 当前开发网络无法访问 `*.workers.dev`，公网 smoke test 需要用用户网络或自定义域名复测。

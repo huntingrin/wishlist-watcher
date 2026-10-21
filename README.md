@@ -57,6 +57,14 @@ export WISHLIST_PROXY_TOKEN="..."
 
 代理模式优先于直连；`doctor` 会显示当前是 `proxy` 还是 `direct`。
 
+当前内测部署：
+
+```text
+https://wishlist-watcher-proxy.huntingrin.workers.dev
+```
+
+邀请 token 不在仓库里，由维护者私下分发。部分网络可能无法访问 `*.workers.dev`；如果打不开，需要绑定自定义域名或改用 VPS，见 `proxy/README.md`。
+
 不要把 Key 或邀请 token 放进 Skill 目录、对话或仓库。
 
 ### 2. 环境自检

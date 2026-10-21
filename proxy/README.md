@@ -25,6 +25,19 @@ Skill  →  Bearer <invite-token>  →  Worker  →  x-api-key  →  海纳
 - 请求体上限 8 KB，`product_query` 最长 100 字，`size` 1–10
 - 不记录 query 内容、token、Haina Key
 
+## 当前内测部署
+
+```text
+https://wishlist-watcher-proxy.huntingrin.workers.dev
+```
+
+已设置 `HAINA_API_KEY`、`PROXY_TOKENS` 两个 secret。邀请 token 由维护者私下分发，不写入仓库。
+
+部分网络无法访问 `*.workers.dev`（TLS handshake failure / timeout）。如果内测用户打不开，需要：
+
+1. 给 Worker 绑定一个自定义域名（需要域名已接入 Cloudflare）；或
+2. 把同一份 `src/index.ts` 部署到 VPS/Fly.io 等可访问的运行时。
+
 ## 部署
 
 ```bash
