@@ -73,6 +73,17 @@ npm run deploy
 https://wishlist-watcher-proxy.<your-subdomain>.workers.dev
 ```
 
+## 给测试者发安装命令
+
+每个测试者一个 token，发这一条（替换 token）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/install.sh \
+  | bash -s -- --token invite-alice-xxxxxxxx
+```
+
+脚本会自动安装 skill、写入代理配置并运行 `setup`。测试者不需要接触海纳 Key。
+
 ## 自测
 
 ```bash

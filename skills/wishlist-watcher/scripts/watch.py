@@ -22,6 +22,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from haina import (  # noqa: E402
+    DEFAULT_PROXY_URL,
     HainaError,
     clear_proxy_config,
     find_best_match,
@@ -49,6 +50,8 @@ from store import (  # noqa: E402
     state_path,
 )
 
+VERSION = "0.4.0"
+
 WELCOME_TEXT = """我可以帮你“盯价”：
 1. 说“帮我盯 <商品>，降到 <目标价> 告诉我”
 2. 我搜出候选，你选一个
@@ -75,8 +78,8 @@ def _provider_key(args: argparse.Namespace) -> str | None:
     key = load_api_key(SKILL_DIR, state_dir)
     if not key:
         raise HainaError(
-            "没有配置 HAINA_API_KEY 或代理。请设置环境变量、写入 .env.local，"
-            "或用 `watch.py login --url ... --token ...` 配置内测代理。"
+            "没有配置 HAINA_API_KEY 或代理。先运行 `watch.py setup --format json`，"
+            "再按 next_action 操作；邀请用户只需 `watch.py login --token <邀请 token>`。"
         )
     return key
 
@@ -225,18 +228,144 @@ def cmd_welcome(args: argparse.Namespace) -> int:
     return 0
 
 
+def _state_dir_check(state_dir: Path) -> tuple[bool, str]:
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        probe = state_dir / ".setup-probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+    except OSError as exc:
+        return False, f"{state_dir}（{exc}）"
+    return True, str(state_dir)
+
+
+def cmd_setup(args: argparse.Namespace) -> int:
+    """Machine-readable first-run state for any host.
+
+    Always exits 0 when the check itself ran: `ready=false` is a normal state
+    that tells the agent which single action to take next.
+    """
+
+    state_dir = _state_dir(args)
+    script = Path(__file__).resolve()
+    python_ok = sys.version_info >= (3, 10)
+    state_ok, state_detail = _state_dir_check(state_dir)
+
+    proxy = None
+    proxy_error = None
+    try:
+        proxy = load_proxy_config(state_dir)
+    except HainaError as exc:
+        proxy_error = str(exc)
+    key = load_api_key(SKILL_DIR, state_dir)
+
+    ready = False
+    mode = None
+    reason = None
+    next_action = None
+
+    if not python_ok:
+        reason = "python_too_old"
+        next_action = {
+            "type": "install_python",
+            "message": "需要 Python 3.10 或更高版本",
+            "command": "python3 --version",
+        }
+    elif not state_ok:
+        reason = "state_dir_unwritable"
+        next_action = {
+            "type": "fix_state_dir",
+            "message": f"当前状态目录不可写：{state_detail}",
+            "command": f'"{sys.executable}" "{script}" setup --state-dir <可写目录>',
+        }
+    elif proxy_error:
+        reason = "proxy_config_invalid"
+        next_action = {
+            "type": "fix_proxy",
+            "message": f"代理配置异常：{proxy_error}。可先 logout，再重新 login",
+            "command": f'"{sys.executable}" "{script}" logout',
+        }
+    elif proxy is not None:
+        ready = True
+        mode = "proxy"
+    elif key:
+        ready = True
+        mode = "direct"
+    else:
+        reason = "needs_data_source"
+        next_action = {
+            "type": "login",
+            "message": "向维护者要一个邀请 token，然后运行这条命令；不需要海纳 Key",
+            "command": f'"{sys.executable}" "{script}" login --token <邀请 token>',
+            "alternative": {
+                "type": "direct",
+                "message": "如果已有海纳 Key，也可以直连",
+                "command": "export HAINA_API_KEY=<你的 Key>",
+            },
+        }
+
+    payload: dict[str, Any] = {
+        "status": "ok",
+        "version": VERSION,
+        "ready": ready,
+        "mode": mode,
+        "reason": reason,
+        "next_action": next_action,
+        "state_dir": str(state_dir),
+        "skill_dir": str(SKILL_DIR),
+        "python": sys.version.split()[0],
+        "proxy_url": proxy["url"] if proxy else None,
+        "api_key": mask_key(key),
+        "message": "配置已就绪；首次查价会验证网络" if ready else (next_action or {}).get("message"),
+    }
+    if ready:
+        markdown = "\n".join(
+            [
+                "# 安装状态",
+                "",
+                "配置已就绪（网络在首次查价时验证）。",
+                f"模式：{mode}",
+                f"状态目录：{state_dir}",
+                "",
+                '直接说“帮我盯 <商品>，降到 <目标价> 告诉我”即可。',
+            ]
+        )
+    else:
+        markdown = "\n".join(
+            [
+                "# 还差一步",
+                "",
+                f"原因：{reason}",
+                f"说明：{(next_action or {}).get('message', '')}",
+                "",
+                "运行：",
+                "",
+                "```bash",
+                (next_action or {}).get("command", ""),
+                "```",
+            ]
+        )
+    _emit(payload, args, markdown)
+    return 0
+
+
 def cmd_login(args: argparse.Namespace) -> int:
     state_dir = _state_dir(args)
     token = (args.token or os.environ.get("WISHLIST_PROXY_TOKEN", "")).strip()
     if not token:
         _error(args, "请用 --token 或环境变量 WISHLIST_PROXY_TOKEN 提供邀请 token")
         return 1
+    url = (
+        args.url
+        or os.environ.get("WISHLIST_PROXY_URL", "")
+        or DEFAULT_PROXY_URL
+    ).strip()
     try:
-        path = save_proxy_config(state_dir, args.url, token)
+        path = save_proxy_config(state_dir, url, token)
     except HainaError as exc:
         _error(args, str(exc))
         return 1
-    url = args.url.strip().rstrip("/")
+    url = url.rstrip("/")
     payload = {
         "status": "ok",
         "mode": "proxy",
@@ -362,8 +491,11 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     ok = all(check["ok"] for check in checks if check["required"])
     payload = {
         "ok": ok,
+        "ready": ok,
         "mode": mode,
+        "version": VERSION,
         "python": sys.version.split()[0],
+        "skill_dir": str(SKILL_DIR),
         "state_dir": str(state_dir),
         "state_file": str(state_path(state_dir)),
         "api_key": mask_key(key),
@@ -377,7 +509,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     if not provider_ok:
         lines.append("")
         lines.append("直连：`export HAINA_API_KEY=...`")
-        lines.append("内测代理：`python3 scripts/watch.py login --url <proxy-url> --token <invite-token>`")
+        lines.append("邀请用户：`python3 <skill-dir>/scripts/watch.py login --token <邀请 token>`")
     _emit(payload, args, "\n".join(lines))
     return 0 if ok else 1
 
@@ -820,7 +952,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="watch.py",
         description="心愿单盯价：建档、查价、提醒、反馈（本地 JSON，海纳取价）。",
     )
-    parser.add_argument("--version", action="version", version="wishlist-watcher 0.3.0")
+    parser.add_argument("--version", action="version", version=f"wishlist-watcher {VERSION}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     def common(p: argparse.ArgumentParser) -> None:
@@ -837,8 +969,12 @@ def build_parser() -> argparse.ArgumentParser:
     common(doctor)
     doctor.set_defaults(func=cmd_doctor)
 
-    login = sub.add_parser("login", help="配置内测代理（邀请 token）")
-    login.add_argument("--url", required=True, help="代理地址，例如 https://xxx.workers.dev")
+    setup = sub.add_parser("setup", help="首次运行状态机：检查是否已就绪")
+    common(setup)
+    setup.set_defaults(func=cmd_setup)
+
+    login = sub.add_parser("login", help="配置邀请代理（只需 token）")
+    login.add_argument("--url", help="代理地址；默认使用内置地址")
     login.add_argument("--token", help="邀请 token；也可用 WISHLIST_PROXY_TOKEN")
     common(login)
     login.set_defaults(func=cmd_login)

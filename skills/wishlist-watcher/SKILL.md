@@ -7,9 +7,26 @@ description: 心愿单盯价。用户说“帮我盯某商品，降到某价告�
 
 把“想买但再等等”变成一条本地监控：确认商品、记录目标价、定期查价、只在触发时提醒。
 
-## 首次使用
+## 首次使用：先 setup
 
-Skill 首次被调用时，先运行：
+Skill 首次被调用时，**必须先运行**：
+
+```bash
+python3 <skill-dir>/scripts/watch.py setup --format json
+```
+
+按返回处理，不要跳过：
+
+- `ready=true`：继续下面的欢迎语流程，可以正常建档查价。
+- `ready=false`：只执行 `next_action.command`，把 `next_action.message` 告诉用户；**不要**假装已经能查价。
+  - `reason=needs_data_source`：向用户要邀请 token，然后运行 `login --token <token>`；有海纳 Key 的用户可改用 `export HAINA_API_KEY=...`。
+  - `reason=proxy_config_invalid`：先 `logout`，再重新 `login`。
+  - `reason=python_too_old` / `state_dir_unwritable`：按 `next_action` 修复。
+- 修复后重新运行 `setup`，直到 `ready=true`。
+
+`setup` 返回 0 只代表检查执行成功，不代表已就绪；以 `ready` 字段为准。
+
+就绪后运行：
 
 ```bash
 python3 <skill-dir>/scripts/watch.py welcome --format json
@@ -18,14 +35,6 @@ python3 <skill-dir>/scripts/watch.py welcome --format json
 如果返回 `first_run=true`，把 `message` **原样**发给用户，然后再运行一次 `welcome --mark --format json`，避免下次重复。如果 `first_run=false`，不要主动重复发；用户问“怎么用 / 帮助”时可以再发。
 
 如果宿主支持 skill 加载钩子，可在钩子里调用 `welcome --mark`；否则在首次被调用时发送。不要承诺“安装瞬间弹消息”，这取决于宿主能力。
-
-首次使用还建议运行一次：
-
-```bash
-python3 <skill-dir>/scripts/watch.py doctor --format json
-```
-
-如果 `ok` 为 false，按返回的 `checks` 告诉用户缺什么（通常是 `HAINA_API_KEY` 或代理配置），不要继续假装能查价。
 
 ## 数据源模式
 
@@ -36,11 +45,10 @@ python3 <skill-dir>/scripts/watch.py doctor --format json
 **内测代理**：用户只拿邀请 token，不接触海纳 Key：
 
 ```bash
-python3 <skill-dir>/scripts/watch.py login \
-  --url "https://wishlist-watcher-proxy.<subdomain>.workers.dev" \
-  --token "<邀请 token>"
+python3 <skill-dir>/scripts/watch.py login --token "<邀请 token>"
 ```
 
+- 内置代理地址，正常只需 token；自建代理才加 `--url`。
 - token 保存到 `~/.wishlist-watcher/proxy.json`（0600），不要回显、不要写进对话。
 - `doctor` 会显示 `mode: proxy` 或 `mode: direct`。
 - 删除配置：`python3 <skill-dir>/scripts/watch.py logout`。

@@ -29,7 +29,7 @@ python3 -m unittest discover -s tests -v
 ## 环境自检
 
 ```bash
-python3 scripts/watch.py doctor --network
+python3 skills/wishlist-watcher/scripts/watch.py doctor --network
 ```
 
 结果：通过。Python、状态目录、Key、fixtures、海纳网络均正常。
@@ -37,7 +37,7 @@ python3 scripts/watch.py doctor --network
 ## 离线演示
 
 ```bash
-python3 scripts/watch.py demo
+python3 skills/wishlist-watcher/scripts/watch.py demo
 ```
 
 结果：输出 2 个候选；目标价 9000 触发“达到目标价”，目标价 8000 不触发。
@@ -47,7 +47,7 @@ python3 scripts/watch.py demo
 ### 建档
 
 ```bash
-python3 scripts/watch.py add "索尼 A7C2" --target 8000 --format json
+python3 skills/wishlist-watcher/scripts/watch.py add "索尼 A7C2" --target 8000 --format json
 ```
 
 结果：`status=needs_pick`，返回多个候选（当时默认 10 个；现已改为默认 5 个）。
@@ -55,7 +55,7 @@ python3 scripts/watch.py add "索尼 A7C2" --target 8000 --format json
 确认第 2 个（京东自营）后：
 
 ```bash
-python3 scripts/watch.py add "索尼 A7C2" --target 8000 --pick 2
+python3 skills/wishlist-watcher/scripts/watch.py add "索尼 A7C2" --target 8000 --pick 2
 ```
 
 结果：创建 `w_627211cae00a`，当前到手 ¥8,531.45，页面价 ¥10,129.00。
@@ -63,8 +63,8 @@ python3 scripts/watch.py add "索尼 A7C2" --target 8000 --pick 2
 ### 两步建档使用缓存的候选
 
 ```bash
-python3 scripts/watch.py add "索尼 A7C2" --target 8000 --state-dir <tmp>
-HAINA_API_KEY="" python3 scripts/watch.py add "索尼 A7C2" --target 8000 --pick 2 --state-dir <tmp>
+python3 skills/wishlist-watcher/scripts/watch.py add "索尼 A7C2" --target 8000 --state-dir <tmp>
+HAINA_API_KEY="" python3 skills/wishlist-watcher/scripts/watch.py add "索尼 A7C2" --target 8000 --pick 2 --state-dir <tmp>
 ```
 
 结果：第一次 `needs_pick` 返回 5 个候选并写入 `pending-add.json`；第二次在无 Key、无网络的情况下用缓存候选建档成功，`pending-add.json` 自动删除。避免用户确认序号后重新搜索导致候选顺序变化。
@@ -72,7 +72,7 @@ HAINA_API_KEY="" python3 scripts/watch.py add "索尼 A7C2" --target 8000 --pick
 ### 不触发
 
 ```bash
-python3 scripts/watch.py check --id w_627211cae00a --format json
+python3 skills/wishlist-watcher/scripts/watch.py check --id w_627211cae00a --format json
 ```
 
 结果：`not_met`，无提醒。
@@ -82,8 +82,8 @@ python3 scripts/watch.py check --id w_627211cae00a --format json
 用目标价 9000 另建一项：
 
 ```bash
-python3 scripts/watch.py add "索尼 A7C2" --target 9000 --pick 2
-python3 scripts/watch.py check --id w_6ccea569150e
+python3 skills/wishlist-watcher/scripts/watch.py add "索尼 A7C2" --target 9000 --pick 2
+python3 skills/wishlist-watcher/scripts/watch.py check --id w_6ccea569150e
 ```
 
 结果：输出【值得买】卡片，原因 `target`，比目标价低 ¥468.55。
@@ -93,7 +93,7 @@ python3 scripts/watch.py check --id w_6ccea569150e
 立即再次检查同一项：
 
 ```bash
-python3 scripts/watch.py check --id w_6ccea569150e --format json
+python3 skills/wishlist-watcher/scripts/watch.py check --id w_6ccea569150e --format json
 ```
 
 结果：`cooldown`，`cooldown_until` 为 24 小时后，无重复提醒。
@@ -101,10 +101,10 @@ python3 scripts/watch.py check --id w_6ccea569150e --format json
 ### 反馈
 
 ```bash
-python3 scripts/watch.py feedback w_6ccea569150e --action bought
-python3 scripts/watch.py feedback w_627211cae00a --action wait --days 7
-python3 scripts/watch.py feedback w_627211cae00a --action inaccurate --note "测试价格不准"
-python3 scripts/watch.py feedback w_627211cae00a --action resume
+python3 skills/wishlist-watcher/scripts/watch.py feedback w_6ccea569150e --action bought
+python3 skills/wishlist-watcher/scripts/watch.py feedback w_627211cae00a --action wait --days 7
+python3 skills/wishlist-watcher/scripts/watch.py feedback w_627211cae00a --action inaccurate --note "测试价格不准"
+python3 skills/wishlist-watcher/scripts/watch.py feedback w_627211cae00a --action resume
 ```
 
 结果：`bought` 归档；`wait` 设置 7 天冷却；`inaccurate` 暂停 1 天；`resume` 恢复 active。
@@ -146,3 +146,21 @@ npx wrangler deploy --dry-run --outdir dist
 - OpenCode 之外的宿主（Claude Code / Codex）实测属于 D5。
 - 主动定时推送未接入；当前依赖宿主调用 `check`。
 - 当前开发网络无法访问 `*.workers.dev`，公网 smoke test 需要用用户网络或自定义域名复测。
+
+## v0.4 安装与 setup 验证
+
+日期：2026-10-21
+
+- `python3 -m unittest discover -s tests -v`：35 个测试全部通过。
+- `npx skills add . --list`：从仓库根目录识别到 1 个 skill：`wishlist-watcher`。
+- 在临时 `HOME` 中执行 `bash install.sh --repo . --token invite-test-123456`：
+  - skill 安装到 `~/.agents/skills/wishlist-watcher`
+  - `~/.wishlist-watcher/proxy.json` 写入成功，权限 0600
+  - `setup` 返回 `ready=true`、`mode=proxy`
+- 未配置任何 token/Key 时执行 `setup --format json`：
+  - 返回 `ready=false`、`reason=needs_data_source`
+  - `next_action.type=login`，命令中不含 token
+- `login --token ...` 不传 `--url` 时使用内置代理地址。
+- `login --token ...` 输出不回显 token。
+
+仍未验证：公网代理可达性（当前开发网络访问 `*.workers.dev` 超时）；跨 Claude Code / Codex 真机安装。

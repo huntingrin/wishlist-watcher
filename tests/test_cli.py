@@ -9,7 +9,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WATCH = ROOT / "scripts" / "watch.py"
+SKILL = ROOT / "skills" / "wishlist-watcher"
+WATCH = SKILL / "scripts" / "watch.py"
 
 
 class CliTests(unittest.TestCase):
@@ -198,6 +199,58 @@ class CliTests(unittest.TestCase):
             self.assertFalse((Path(tmp) / "pending-add.json").exists())
             saved = json.loads((Path(tmp) / "watchlist.json").read_text(encoding="utf-8"))
             self.assertEqual(len(saved["items"]), 1)
+
+    def test_setup_reports_next_action_then_becomes_ready_after_login(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {
+                **os.environ,
+                "HAINA_API_KEY": "",
+                "WISHLIST_PROXY_URL": "",
+                "WISHLIST_PROXY_TOKEN": "",
+            }
+            setup = self.run_cli("setup", "--format", "json", state_dir=tmp, env=env)
+            self.assertEqual(setup.returncode, 0, setup.stderr)
+            payload = json.loads(setup.stdout)
+            self.assertFalse(payload["ready"])
+            self.assertEqual(payload["reason"], "needs_data_source")
+            self.assertEqual(payload["next_action"]["type"], "login")
+            self.assertIn("login", payload["next_action"]["command"])
+            self.assertNotIn("invite-123456", setup.stdout)
+
+            login = self.run_cli(
+                "login",
+                "--token",
+                "invite-123456",
+                "--format",
+                "json",
+                state_dir=tmp,
+                env=env,
+            )
+            self.assertEqual(login.returncode, 0, login.stderr)
+            self.assertNotIn("invite-123456", login.stdout)
+            config = json.loads((Path(tmp) / "proxy.json").read_text(encoding="utf-8"))
+            self.assertEqual(config["url"], "https://wishlist-watcher-proxy.huntingrin.workers.dev")
+
+            ready = self.run_cli("setup", "--format", "json", state_dir=tmp, env=env)
+            self.assertEqual(ready.returncode, 0, ready.stderr)
+            ready_payload = json.loads(ready.stdout)
+            self.assertTrue(ready_payload["ready"])
+            self.assertEqual(ready_payload["mode"], "proxy")
+
+    def test_setup_accepts_direct_key(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {
+                **os.environ,
+                "HAINA_API_KEY": "direct-test-key",
+                "WISHLIST_PROXY_URL": "",
+                "WISHLIST_PROXY_TOKEN": "",
+            }
+            setup = self.run_cli("setup", "--format", "json", state_dir=tmp, env=env)
+            self.assertEqual(setup.returncode, 0, setup.stderr)
+            payload = json.loads(setup.stdout)
+            self.assertTrue(payload["ready"])
+            self.assertEqual(payload["mode"], "direct")
+            self.assertNotIn("direct-test-key", setup.stdout)
 
     def test_login_saves_proxy_config_without_echoing_token(self):
         with tempfile.TemporaryDirectory() as tmp:

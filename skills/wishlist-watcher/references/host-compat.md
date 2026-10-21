@@ -33,8 +33,9 @@ py -3   scripts/watch.py doctor
 - 状态：`~/.wishlist-watcher/watchlist.json`
 - 覆盖：`--state-dir <绝对路径>`
 - 直连 Key：`HAINA_API_KEY` 环境变量，或 `~/.wishlist-watcher/.env.local`
-- 内测代理：`watch.py login --url ... --token ...`，保存到 `~/.wishlist-watcher/proxy.json`
+- 邀请代理：`watch.py login --token ...`，保存到 `~/.wishlist-watcher/proxy.json`
 - 换 Agent/换会话只需指向同一 `--state-dir`。
+- 首次运行先执行 `watch.py setup --format json`，以 `ready` 为准。
 
 ## 能力分级
 

@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-**v0.3（D1–D3）已实现**：欢迎语、环境自检、商品建档、真实海纳查价、目标价/自入库最低价触发、24 小时冷却、再等等/买了/不准反馈。
+**v0.4（D1–D3 + 0 配置安装）已实现**：标准 Agent Skill 包、`npx skills` 安装、邀请 token 一键安装、首次运行 `setup` 状态机、商品建档、真实海纳查价、目标价/自入库最低价触发、24 小时冷却、再等等/买了/不准反馈。
 
 另外包含一个 **3–5 人内测代理**（`proxy/`）：海纳 Key 只放 Cloudflare Worker secret，客户端只拿邀请 token。
 
@@ -14,21 +14,81 @@
 
 可行性调研见 [feasibility.md](./feasibility.md)。
 
+## 给朋友：一条命令安装
+
+维护者先给每个人发一个邀请 token，然后让朋友运行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/install.sh \
+  | bash -s -- --token invite-xxxx
+```
+
+这条命令会：
+
+1. 检查 Python 3.10+
+2. 用 `npx skills` 把 Skill 装到已检测到的 agent（Claude Code / Codex / OpenCode / Cursor 等）
+3. 把代理地址和 token 写入 `~/.wishlist-watcher/proxy.json`（0600）
+4. 运行 `setup`，确认已就绪
+
+装完打开 agent，直接说：
+
+```text
+帮我盯 索尼 A7C2，降到 8000 告诉我
+```
+
+Windows：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1 -Token invite-xxxx
+```
+
+已经 clone 仓库时：
+
+```bash
+bash install.sh --repo . --token invite-xxxx
+```
+
+安装细节与各宿主路径见 [docs/INSTALL.md](./docs/INSTALL.md)。
+
 ## 它是什么
 
 一个 **Agent Skill**，不是独立 App：
 
-- `SKILL.md`：告诉任何 Agent 怎么触发、怎么问、怎么展示、怎么回收反馈。
-- `scripts/`：确定性执行层，负责海纳取价、状态、规则，不让模型心算价格。
+- `skills/wishlist-watcher/SKILL.md`：告诉任何 Agent 怎么触发、怎么问、怎么展示、怎么回收反馈。
+- `skills/wishlist-watcher/scripts/`：确定性执行层，负责海纳取价、状态、规则，不让模型心算价格。
 - 本地 JSON 状态：换会话/换 Agent 只要指向同一目录就能继续。
 
 只依赖 **Python 3.10+ 标准库**，不需要 MCP、浏览器、特定模型或特定 Agent API。
 
 ## 快速开始
 
-### 1. 选择数据源模式
+### 1. 安装 Skill
 
-**模式 A：直连海纳（自己的 Key）**
+推荐：
+
+```bash
+npx skills add huntingrin/wishlist-watcher --skill wishlist-watcher -g -y
+```
+
+只装到特定 agent：
+
+```bash
+npx skills add huntingrin/wishlist-watcher --skill wishlist-watcher -g -y -a claude-code -a opencode
+```
+
+手动安装：把 `skills/wishlist-watcher/` 整个目录复制到宿主的 skills 目录，例如 `~/.claude/skills/wishlist-watcher/`。
+
+### 2. 选择数据源模式
+
+**模式 A：邀请代理（推荐给朋友，不需要海纳 Key）**
+
+```bash
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py login --token "邀请 token"
+```
+
+内置代理地址，正常不需要 `--url`；自建代理才需要。
+
+**模式 B：直连海纳（自己的 Key）**
 
 ```bash
 export HAINA_API_KEY="你的海纳 Key"
@@ -40,81 +100,65 @@ export HAINA_API_KEY="你的海纳 Key"
 HAINA_API_KEY=...
 ```
 
-**模式 B：内测代理（不接触海纳 Key）**
+代理模式优先于直连；`setup` / `doctor` 会显示当前是 `proxy` 还是 `direct`。
+
+### 3. 首次运行状态机
 
 ```bash
-python3 scripts/watch.py login \
-  --url "https://wishlist-watcher-proxy.<subdomain>.workers.dev" \
-  --token "你的邀请 token"
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py setup --format json
 ```
 
-也可以不写 `--token`，改用环境变量：
+- `ready=true`：可以建档查价。
+- `ready=false`：按 `next_action.command` 操作，通常只差一个邀请 token。
+
+环境自检：
 
 ```bash
-export WISHLIST_PROXY_URL="https://..."
-export WISHLIST_PROXY_TOKEN="..."
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py doctor --network
 ```
 
-代理模式优先于直连；`doctor` 会显示当前是 `proxy` 还是 `direct`。
-
-当前内测部署：
-
-```text
-https://wishlist-watcher-proxy.huntingrin.workers.dev
-```
-
-邀请 token 不在仓库里，由维护者私下分发。部分网络可能无法访问 `*.workers.dev`；如果打不开，需要绑定自定义域名或改用 VPS，见 `proxy/README.md`。
-
-不要把 Key 或邀请 token 放进 Skill 目录、对话或仓库。
-
-### 2. 环境自检
+### 4. 首次使用说明
 
 ```bash
-python3 scripts/watch.py doctor --network
-```
-
-### 3. 首次使用说明
-
-```bash
-python3 scripts/watch.py welcome --mark
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py welcome --mark
 ```
 
 Agent 应把输出原样发给用户；只自动发一次。
 
-### 4. 建档
+### 5. 建档
 
 ```bash
-python3 scripts/watch.py add "索尼 A7C2" --target 8000
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py add "索尼 A7C2" --target 8000
 ```
 
 如果有多个候选，会输出候选列表；确认后：
 
 ```bash
-python3 scripts/watch.py add "索尼 A7C2" --target 8000 --pick 2
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py add "索尼 A7C2" --target 8000 --pick 2
 ```
 
-### 5. 查价
+### 6. 查价
 
 ```bash
-python3 scripts/watch.py check
-python3 scripts/watch.py check --id w_xxxx
-python3 scripts/watch.py list
-python3 scripts/watch.py show w_xxxx
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py check
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py check --id w_xxxx
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py list
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py show w_xxxx
 ```
 
-### 6. 反馈
+### 7. 反馈
 
 ```bash
-python3 scripts/watch.py feedback w_xxxx --action wait --days 7
-python3 scripts/watch.py feedback w_xxxx --action bought
-python3 scripts/watch.py feedback w_xxxx --action inaccurate --note "点进去价格不对"
-python3 scripts/watch.py feedback w_xxxx --action resume
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py feedback w_xxxx --action wait --days 7
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py feedback w_xxxx --action bought
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py feedback w_xxxx --action inaccurate --note "点进去价格不对"
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py feedback w_xxxx --action resume
 ```
 
-### 7. 删除代理配置
+### 8. 删除代理配置
 
 ```bash
-python3 scripts/watch.py logout
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py logout
 ```
 
 只会删除本地 `~/.wishlist-watcher/proxy.json`；环境变量请自行取消。
@@ -122,7 +166,7 @@ python3 scripts/watch.py logout
 ### 离线演示
 
 ```bash
-python3 scripts/watch.py demo
+python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py demo
 ```
 
 ## 提醒示例
@@ -150,29 +194,34 @@ python3 scripts/watch.py demo
 
 ```text
 .
-├── SKILL.md                 # Agent 入口与对话协议
+├── skills/wishlist-watcher/   # 可被 npx skills 安装的 Skill 包
+│   ├── SKILL.md               # Agent 入口与对话协议
+│   ├── agents/openai.yaml     # OpenAI/Codex 形态的元数据（可选）
+│   ├── references/
+│   │   ├── haina-api.md       # 海纳接口、字段、价格口径
+│   │   ├── alert-rules.md     # 触发/冷却/降噪规则
+│   │   └── host-compat.md     # 跨 agent 兼容与降级说明
+│   ├── scripts/
+│   │   ├── haina.py           # 海纳客户端
+│   │   ├── store.py           # 本地状态
+│   │   ├── rules.py           # 触发规则
+│   │   └── watch.py           # CLI
+│   └── fixtures/              # 离线演示数据
+├── install.sh                 # macOS/Linux 一条命令安装
+├── install.ps1                # Windows 一条命令安装
 ├── README.md
-├── SECURITY.md              # 密钥/代理安全说明
-├── LICENSE                  # MIT
+├── SECURITY.md                # 密钥/代理安全说明
+├── LICENSE                    # MIT
 ├── .github/workflows/test.yml
-├── agents/openai.yaml       # OpenAI/Codex 形态的元数据（可选）
-├── references/
-│   ├── haina-api.md         # 海纳接口、字段、价格口径
-│   ├── alert-rules.md       # 触发/冷却/降噪规则
-│   └── host-compat.md       # 跨 agent 兼容与降级说明
-├── scripts/
-│   ├── haina.py             # 海纳客户端
-│   ├── store.py             # 本地状态
-│   ├── rules.py             # 触发规则
-│   └── watch.py             # CLI
-├── data/schema.md           # 状态 schema
-├── docs/VERIFICATION.md     # D1–D3 验证记录
-├── fixtures/                # 离线演示数据
-├── proxy/                   # 3–5 人内测代理（Cloudflare Worker）
+├── data/schema.md             # 状态 schema
+├── docs/
+│   ├── INSTALL.md             # 各宿主安装与排错
+│   └── VERIFICATION.md        # D1–D3 验证记录
+├── proxy/                     # 3–5 人内测代理（Cloudflare Worker）
 │   ├── src/index.ts
 │   ├── wrangler.toml
 │   └── README.md
-├── tests/                   # 单元/CLI/代理配置测试
+├── tests/                     # 单元/CLI/代理配置测试
 └── feasibility.md
 ```
 

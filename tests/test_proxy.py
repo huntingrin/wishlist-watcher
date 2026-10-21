@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "skills" / "wishlist-watcher" / "scripts"))
 
 import haina  # noqa: E402
 
@@ -47,6 +47,14 @@ class ProxyConfigTests(unittest.TestCase):
         with patch.dict(os.environ, {"WISHLIST_PROXY_URL": "https://env.example", "WISHLIST_PROXY_TOKEN": ""}):
             with self.assertRaises(haina.HainaError):
                 haina.load_proxy_config(None)
+
+    def test_token_only_env_uses_builtin_proxy(self):
+        with patch.dict(os.environ, {"WISHLIST_PROXY_URL": "", "WISHLIST_PROXY_TOKEN": "invite-123456"}):
+            config = haina.load_proxy_config(None)
+            self.assertIsNotNone(config)
+            assert config is not None
+            self.assertEqual(config["url"], haina.DEFAULT_PROXY_URL)
+            self.assertEqual(config["token"], "invite-123456")
 
     def test_product_search_uses_proxy_endpoint_and_bearer_header(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -21,6 +21,9 @@ from typing import Any
 
 PRODUCT_URL = "https://gw-openapi.zhidemai.com/product/v1"
 DISCOUNT_URL = "https://gw-openapi.zhidemai.com/hj-search/discount/v2"
+# Invite-only proxy for the small alpha.  Override with WISHLIST_PROXY_URL or
+# `watch.py login --url ...` when self-hosting.
+DEFAULT_PROXY_URL = "https://wishlist-watcher-proxy.huntingrin.workers.dev"
 PROXY_CONFIG_FILENAME = "proxy.json"
 DEFAULT_TIMEOUT = 30
 MAX_RETRIES = 2
@@ -114,6 +117,9 @@ def load_proxy_config(state_dir: Path | None = None) -> dict[str, str] | None:
 
     env_url = os.environ.get("WISHLIST_PROXY_URL", "").strip()
     env_token = os.environ.get("WISHLIST_PROXY_TOKEN", "").strip()
+    if env_token and not env_url:
+        # The invite build ships with one known proxy; a token alone is enough.
+        env_url = DEFAULT_PROXY_URL
     if env_url or env_token:
         if not env_url or not env_token:
             raise HainaError("WISHLIST_PROXY_URL 和 WISHLIST_PROXY_TOKEN 必须同时设置")
