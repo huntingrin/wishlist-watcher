@@ -153,10 +153,11 @@ npx wrangler deploy --dry-run --outdir dist
 
 - `python3 -m unittest discover -s tests -v`：35 个测试全部通过。
 - `npx skills add . --list`：从仓库根目录识别到 1 个 skill：`wishlist-watcher`。
-- 在临时 `HOME` 中执行 `bash install.sh --repo . --token invite-test-123456`：
+- 在临时 `HOME` 中执行 `cat install.sh | bash -s -- --repo . --token invite-test-123456`（模拟 `curl | bash`）：
   - skill 安装到 `~/.agents/skills/wishlist-watcher`
   - `~/.wishlist-watcher/proxy.json` 写入成功，权限 0600
   - `setup` 返回 `ready=true`、`mode=proxy`
+  - npx 步骤加了 `</dev/null`，否则会吞掉管道里剩余的安装脚本
 - 未配置任何 token/Key 时执行 `setup --format json`：
   - 返回 `ready=false`、`reason=needs_data_source`
   - `next_action.type=login`，命令中不含 token

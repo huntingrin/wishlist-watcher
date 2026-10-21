@@ -108,7 +108,9 @@ if [[ "$INSTALL_SKILL" -eq 1 ]]; then
     AGENT_ARGS=(-a codex)
   fi
 
-  npx -y skills add "$REPO" --skill wishlist-watcher -g -y "${AGENT_ARGS[@]}"
+  # `< /dev/null` is required for `curl | bash`: npx must not consume the
+  # remaining installer script from stdin.
+  npx -y skills add "$REPO" --skill wishlist-watcher -g -y "${AGENT_ARGS[@]}" </dev/null
 fi
 
 # `npx skills` keeps a canonical copy under ~/.agents/skills and symlinks
