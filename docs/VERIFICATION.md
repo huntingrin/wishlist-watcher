@@ -167,6 +167,29 @@ npx wrangler deploy --dry-run --outdir dist
 3. 大陆 4G（移动/联通/电信各一）关代理访问同一地址。
 4. 带邀请 token 调 `/v1/product/search` 返回真实商品。
 
+### 实测结果（2026-10-22）
+
+- 部署：`watch.huntingrin.com (custom domain)`，cert id `9e3226b9-…`，约 4 分钟后证书生效。
+- 端到端（客户端 → 代理 → 海纳）：`login` → `setup` 返回 `mode=proxy, ready=true`；
+  `add "索尼 A7C2" --target 9000 --pick 2` 创建 `w_0769b8db36db`；
+  `check` 触发 `target`，到手 ¥8,590.95、页面价 ¥10,199.00，与直连模式一致。
+- 大陆可达性（本机北京，不走代理）：**不稳定**。
+  - 同一 Cloudflare IP、同一时间窗，仅换 SNI：`cloudflare.com` 8/8 成功；
+    `watch.huntingrin.com` 4/8，成功时 2.6–6s，失败为 8s TCP 超时。
+  - 连续 15 次 `healthz`：8 次成功。
+  - 结论：不是 Cloudflare IP 或 Worker 的问题，是新域名的 SNI 被概率性丢包。
+  - 挂代理访问时稳定；`*.workers.dev` 仍完全不可用。
+
+### 已知限制
+
+大陆网络下该域名可能一半请求超时。若内测用户反馈打不开，两条路：
+
+1. 香港/新加坡轻量服务器，`watch.huntingrin.com` 改 A 记录直连（关闭橙色云朵），
+   Worker 逻辑移植为 Node + 进程内限流，Caddy 自动签证书；
+2. 阿里云函数计算（免备案默认域名），移植为 FC handler。
+
+客户端支持 `WISHLIST_PROXY_URL` 或 `login --url` 覆盖地址，切换后端不需要重装 Skill。
+
 ## 已知未验证
 
 - `new_low`（跌破自入库最低价）只在单元测试中验证，真实价格未出现更低点。
