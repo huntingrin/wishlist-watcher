@@ -23,7 +23,7 @@ PRODUCT_URL = "https://gw-openapi.zhidemai.com/product/v1"
 DISCOUNT_URL = "https://gw-openapi.zhidemai.com/hj-search/discount/v2"
 # Invite-only proxy for the small alpha.  Override with WISHLIST_PROXY_URL or
 # `watch.py login --url ...` when self-hosting.
-DEFAULT_PROXY_URL = "https://wishlist-watcher-proxy.huntingrin.workers.dev"
+DEFAULT_PROXY_URL = "https://watch.huntingrin.com"
 PROXY_CONFIG_FILENAME = "proxy.json"
 DEFAULT_TIMEOUT = 30
 MAX_RETRIES = 2

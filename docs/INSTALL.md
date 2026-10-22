@@ -152,11 +152,10 @@ python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py doctor --network
 
 ### 无法访问 `*.workers.dev`
 
-部分网络会 TLS handshake failure / timeout。处理方式：
+`*.workers.dev` 在大陆网络被阻断（DNS 投毒 + TLS SNI 重置），这不是配置问题。
+内测请使用自定义域 `https://watch.huntingrin.com`；安装脚本已内置该地址，正常不需要手动指定。
 
-1. 换网络重试。
-2. 让维护者给 Worker 绑定自定义域名。
-3. 按 `proxy/README.md` 把同一份 Worker 部署到 VPS/Fly.io。
+如果自定义域也不通，按 `proxy/README.md` 的备选方案处理。
 
 ### 提示 token 无效（401）
 

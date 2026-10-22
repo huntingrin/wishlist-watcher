@@ -229,7 +229,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(login.returncode, 0, login.stderr)
             self.assertNotIn("invite-123456", login.stdout)
             config = json.loads((Path(tmp) / "proxy.json").read_text(encoding="utf-8"))
-            self.assertEqual(config["url"], "https://wishlist-watcher-proxy.huntingrin.workers.dev")
+            self.assertEqual(config["url"], "https://watch.huntingrin.com")
 
             ready = self.run_cli("setup", "--format", "json", state_dir=tmp, env=env)
             self.assertEqual(ready.returncode, 0, ready.stderr)

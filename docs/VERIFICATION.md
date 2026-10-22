@@ -139,13 +139,40 @@ npx wrangler deploy --dry-run --outdir dist
 
 部署后从当前开发网络访问 `workers.dev` 出现 TLS handshake failure/timeout，未能从这台机器完成公网 smoke test；需要用内测用户网络或自定义域名复测。Worker 本地运行和 Cloudflare 部署本身均已成功。
 
+## 大陆可达性诊断与自定义域（2026-10-22）
+
+### 问题定位
+
+`wishlist-watcher-proxy.huntingrin.workers.dev` 在大陆不可达，原因不是 Cloudflare 被封：
+
+| 测试 | 结果 |
+|---|---|
+| 4 个公共 DNS 解析该域名 | 返回 4 个互不相同的垃圾 IP（31.13.95.17 等）→ DNS 投毒 |
+| 用真实 IP + 原 SNI 直连 | TCP 建连成功，TLS 被 RST → `*.workers.dev` SNI 阻断 |
+| 直连 Cloudflare 任意 IP（SNI=普通站点） | TLS 正常，0.25–0.6s → Cloudflare 网络本身可达 |
+
+结论：换自定义域即可绕开。此前「本地验证通过」是因为开发机挂着 `127.0.0.1:7890` 代理（出口 `cf-ray: -CDG`），不代表大陆用户可达。
+
+### 处置
+
+- 注册 `huntingrin.com`（Cloudflare Registrar，3 年，$31.38），作为通用主域。
+- Worker 绑定自定义域 `watch.huntingrin.com`（`wrangler.toml` 的 `routes`，`custom_domain = true`）。
+- 客户端内置地址改为 `https://watch.huntingrin.com`（`DEFAULT_PROXY_URL`），测试同步更新。
+- `workers_dev` 保留，仅供维护者挂代理调试。
+
+### 复测清单
+
+1. `npx wrangler deploy` 输出应包含 `watch.huntingrin.com (custom domain)`。
+2. `curl https://watch.huntingrin.com/healthz` 返回 `{"ok":true,...}`。
+3. 大陆 4G（移动/联通/电信各一）关代理访问同一地址。
+4. 带邀请 token 调 `/v1/product/search` 返回真实商品。
+
 ## 已知未验证
 
 - `new_low`（跌破自入库最低价）只在单元测试中验证，真实价格未出现更低点。
 - 多平台同款匹配、券/活动条件、图搜/截图录入属于 D4。
 - OpenCode 之外的宿主（Claude Code / Codex）实测属于 D5。
 - 主动定时推送未接入；当前依赖宿主调用 `check`。
-- 当前开发网络无法访问 `*.workers.dev`，公网 smoke test 需要用用户网络或自定义域名复测。
 
 ## v0.4 安装与 setup 验证
 

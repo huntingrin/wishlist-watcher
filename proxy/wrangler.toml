@@ -3,6 +3,12 @@ main = "src/index.ts"
 compatibility_date = "2026-10-01"
 workers_dev = true
 
+# Public endpoint for testers.  *.workers.dev is SNI-blocked on mainland
+# networks, so beta users go through this custom domain instead.
+routes = [
+  { pattern = "watch.huntingrin.com", custom_domain = true }
+]
+
 [durable_objects]
 bindings = [{ name = "LIMITER", class_name = "RateLimiter" }]
 
