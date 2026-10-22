@@ -29,6 +29,7 @@ from haina import (  # noqa: E402
     format_cents,
     load_api_key,
     load_proxy_config,
+    resolve_proxy_config,
     mask_key,
     normalize_product_row,
     price_to_cents,
@@ -72,10 +73,9 @@ def _provider_key(args: argparse.Namespace) -> str | None:
     """Return a direct Haina key, or None when proxy mode is configured."""
 
     state_dir = _state_dir(args)
-    proxy = load_proxy_config(state_dir)
-    if proxy is not None:
-        return None
     key = load_api_key(SKILL_DIR, state_dir)
+    if resolve_proxy_config(state_dir, key) is not None:
+        return None
     if not key:
         raise HainaError(
             "没有配置 HAINA_API_KEY 或代理。先运行 `watch.py setup --format json`，"
@@ -251,13 +251,13 @@ def cmd_setup(args: argparse.Namespace) -> int:
     python_ok = sys.version_info >= (3, 10)
     state_ok, state_detail = _state_dir_check(state_dir)
 
+    key = load_api_key(SKILL_DIR, state_dir)
     proxy = None
     proxy_error = None
     try:
-        proxy = load_proxy_config(state_dir)
+        proxy = resolve_proxy_config(state_dir, key)
     except HainaError as exc:
         proxy_error = str(exc)
-    key = load_api_key(SKILL_DIR, state_dir)
 
     ready = False
     mode = None
@@ -395,7 +395,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     proxy = None
     proxy_error = None
     try:
-        proxy = load_proxy_config(state_dir)
+        proxy = resolve_proxy_config(state_dir, key)
     except HainaError as exc:
         proxy_error = str(exc)
     mode = "proxy" if proxy is not None else "direct"

@@ -1,6 +1,7 @@
 # Wishlist Watcher Proxy
 
-给 3–5 人内部测试用的最小代理。海纳 Key 只放在 Cloudflare Worker 的 secret 里，客户端只拿邀请 token。
+给 3–5 人内部测试用的最小代理。海纳 Key 只放在 Cloudflare Worker 的 secret 里；
+客户端默认用 Skill 内置的公共 beta token，也支持单独发的邀请 token。
 
 ## 它做什么
 
@@ -32,7 +33,9 @@ https://watch.huntingrin.com        # 内测用户走这个（自定义域）
 https://wishlist-watcher-proxy.huntingrin.workers.dev   # 仅维护者调试
 ```
 
-已设置 `HAINA_API_KEY`、`PROXY_TOKENS` 两个 secret。邀请 token 由维护者私下分发，不写入仓库。
+已设置 `HAINA_API_KEY`、`PROXY_TOKENS` 两个 secret。
+其中有一个 token 标为 `public-beta`，写在 `skills/wishlist-watcher/beta-proxy.json` 里随仓库公开，
+目的是让朋友零配置安装。它只是通道凭证，不是密钥。
 
 大陆网络会阻断 `*.workers.dev`（DNS 投毒 + TLS SNI 重置），所以内测统一走
 `watch.huntingrin.com`；`workers_dev` 保留只为维护者挂代理时调试。
@@ -74,7 +77,13 @@ https://wishlist-watcher-proxy.<your-subdomain>.workers.dev
 
 ## 给测试者发安装命令
 
-每个测试者一个 token，发这一条（替换 token）：
+默认什么都不用发，让测试者直接跑：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/install.sh | bash
+```
+
+想给某人单独的、可单独撤销的 token 时，才发带 `--token` 的版本：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/install.sh \
@@ -113,7 +122,8 @@ CACHE_TTL_SECONDS = "300"
 ## 轮换 Key / Token
 
 - Haina Key 轮换：`npx wrangler secret put HAINA_API_KEY`，输入新 Key，立即生效。
-- 邀请 token 轮换：更新 `PROXY_TOKENS` JSON，删除旧 token 后再 `wrangler secret put`。
+- 邀请 token 轮换：更新 `PROXY_TOKENS` JSON，删除旧 token 后再 `wrangler secret put`；
+  公共 beta token 轮换后还要更新 `skills/wishlist-watcher/beta-proxy.json` 并提交。
 - 不要在 Issue、聊天、截图中粘贴真实 token 或 Key。
 
 ## 成本

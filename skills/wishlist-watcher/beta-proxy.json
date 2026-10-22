@@ -1,0 +1,5 @@
+{
+  "_comment": "Zero-config beta channel shipped with the skill. This token is PUBLIC by design: it is an open beta key for friend installations, not a secret. Revoke or rotate it by updating the PROXY_TOKENS secret on the Worker, then bump this file.",
+  "url": "https://watch.huntingrin.com",
+  "token": "invite-beta-32ByfHzUjnQWkfavy8rndHTW0k9n8ylA"
+}

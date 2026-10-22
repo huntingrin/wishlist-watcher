@@ -1,9 +1,10 @@
 # One-command installer for the wishlist-watcher skill (Windows PowerShell).
 #
+#   powershell -ExecutionPolicy Bypass -File install.ps1
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Token invite-xxxx
 #
 param(
-  [Parameter(Mandatory = $true)][string]$Token,
+  [string]$Token = "",
   [string]$Url = "",
   [string]$Repo = "huntingrin/wishlist-watcher"
 )
@@ -38,10 +39,15 @@ if (-not $skillDir) {
   throw "没有找到安装后的 skill。请查看 docs/INSTALL.md 手动安装。"
 }
 
-$loginArgs = @((Join-Path $skillDir "scripts\watch.py"), "login", "--token", $Token, "--format", "json")
-if ($Url) { $loginArgs += @("--url", $Url) }
-python @loginArgs | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "写入代理配置失败" }
+if ($Url -and -not $Token) { throw "-Url 需要同时提供 -Token" }
+if ($Token) {
+  $loginArgs = @((Join-Path $skillDir "scripts\watch.py"), "login", "--token", $Token, "--format", "json")
+  if ($Url) { $loginArgs += @("--url", $Url) }
+  python @loginArgs | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "写入代理配置失败" }
+} else {
+  Write-Host "使用 skill 内置的 beta 通道，无需额外配置。"
+}
 
 Write-Host ""
 Write-Host "安装完成：$skillDir"

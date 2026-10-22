@@ -6,9 +6,10 @@
 
 ## 当前阶段
 
-**v0.4（D1–D3 + 0 配置安装）已实现**：标准 Agent Skill 包、`npx skills` 安装、邀请 token 一键安装、首次运行 `setup` 状态机、商品建档、真实海纳查价、目标价/自入库最低价触发、24 小时冷却、再等等/买了/不准反馈。
+**v0.4（D1–D3 + 零配置安装）已实现**：标准 Agent Skill 包、`npx skills` 安装、内置 beta 通道一键安装、首次运行 `setup` 状态机、商品建档、真实海纳查价、目标价/自入库最低价触发、24 小时冷却、再等等/买了/不准反馈。
 
-另外包含一个 **3–5 人内测代理**（`proxy/`）：海纳 Key 只放 Cloudflare Worker secret，客户端只拿邀请 token。
+另外包含一个 **3–5 人内测代理**（`proxy/`）：海纳 Key 只放 Cloudflare Worker secret；
+客户端内置一个公共 beta token（`beta-proxy.json`，非密钥，可轮换），朋友装完即用。
 
 尚未实现（D4–D5）：好价条件富化、多平台同款匹配、图搜/截图录入、跨 agent 实测矩阵、发布打包。
 
@@ -16,19 +17,17 @@
 
 ## 给朋友：一条命令安装
 
-维护者先给每个人发一个邀请 token，然后让朋友运行：
+不用发 token，也不用配任何东西：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/install.sh \
-  | bash -s -- --token invite-xxxx
+curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/install.sh | bash
 ```
 
 这条命令会：
 
 1. 检查 Python 3.10+
 2. 用 `npx skills` 把 Skill 装到已检测到的 agent（Claude Code / Codex / OpenCode / Cursor 等）
-3. 把代理地址和 token 写入 `~/.wishlist-watcher/proxy.json`（0600）
-4. 运行 `setup`，确认已就绪
+3. 运行 `setup`，确认已就绪（走 Skill 内置的 beta 通道）
 
 装完打开 agent，直接说：
 
@@ -36,16 +35,26 @@ curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/in
 帮我盯 索尼 A7C2，降到 8000 告诉我
 ```
 
+**关于内置 beta 通道**：`skills/wishlist-watcher/beta-proxy.json` 里有一个公共 beta token，
+它是**故意公开的**，不是密钥。海纳 Key 和上游地址始终只在 Worker secret 里。
+代价是任何人拿到仓库都能用这条通道，所以服务端有日上限和 QPS 保险丝，被滥用时直接轮换。
+
+想用自己单独发的 token（可单独撤销）：
+
+```bash
+curl -fsSL .../install.sh | bash -s -- --token invite-xxxx
+```
+
 Windows：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 -Token invite-xxxx
+powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 已经 clone 仓库时：
 
 ```bash
-bash install.sh --repo . --token invite-xxxx
+bash install.sh --repo .
 ```
 
 安装细节与各宿主路径见 [docs/INSTALL.md](./docs/INSTALL.md)。
@@ -82,6 +91,9 @@ npx skills add huntingrin/wishlist-watcher --skill wishlist-watcher -g -y -a cla
 
 **模式 A：邀请代理（推荐给朋友，不需要海纳 Key）**
 
+正常情况下不需要这一步：Skill 自带 beta 通道，`setup` 直接返回 `ready=true`。
+只有想换成自己的 token 或自建代理时才需要：
+
 ```bash
 python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py login --token "邀请 token"
 ```
@@ -109,7 +121,8 @@ python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py setup --format json
 ```
 
 - `ready=true`：可以建档查价。
-- `ready=false`：按 `next_action.command` 操作，通常只差一个邀请 token。
+- `ready=false`：按 `next_action.command` 操作。正常安装不会出现这个状态；
+  只有手动清掉配置、又没设 `HAINA_API_KEY` 时才会要求登录。
 
 环境自检：
 

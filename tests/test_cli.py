@@ -11,6 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "wishlist-watcher"
 WATCH = SKILL / "scripts" / "watch.py"
+# Point the bundled beta channel at a missing file so tests can exercise the
+# "nothing configured" path deterministically.
+NO_BUNDLED_BETA = {"WISHLIST_BETA_FILE": str(ROOT / "tests" / "no-such-beta.json")}
 
 
 class CliTests(unittest.TestCase):
@@ -51,7 +54,7 @@ class CliTests(unittest.TestCase):
 
     def test_doctor_reports_missing_key_without_crashing(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {**os.environ, "HAINA_API_KEY": ""}
+            env = {**os.environ, "HAINA_API_KEY": "", **NO_BUNDLED_BETA}
             result = self.run_cli("doctor", "--format", "json", state_dir=tmp, env=env)
             # Missing Key is a required failure, but the command still returns JSON.
             self.assertEqual(result.returncode, 1)
@@ -65,7 +68,7 @@ class CliTests(unittest.TestCase):
 
     def test_add_without_key_fails_cleanly(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {**os.environ, "HAINA_API_KEY": ""}
+            env = {**os.environ, "HAINA_API_KEY": "", **NO_BUNDLED_BETA}
             result = self.run_cli(
                 "add",
                 "索尼 A7C2",
@@ -179,7 +182,7 @@ class CliTests(unittest.TestCase):
             (Path(tmp) / "pending-add.json").write_text(
                 json.dumps(pending, ensure_ascii=False), encoding="utf-8"
             )
-            env = {**os.environ, "HAINA_API_KEY": ""}
+            env = {**os.environ, "HAINA_API_KEY": "", **NO_BUNDLED_BETA}
             result = self.run_cli(
                 "add",
                 "测试商品",
@@ -207,6 +210,7 @@ class CliTests(unittest.TestCase):
                 "HAINA_API_KEY": "",
                 "WISHLIST_PROXY_URL": "",
                 "WISHLIST_PROXY_TOKEN": "",
+                **NO_BUNDLED_BETA,
             }
             setup = self.run_cli("setup", "--format", "json", state_dir=tmp, env=env)
             self.assertEqual(setup.returncode, 0, setup.stderr)
@@ -236,6 +240,38 @@ class CliTests(unittest.TestCase):
             ready_payload = json.loads(ready.stdout)
             self.assertTrue(ready_payload["ready"])
             self.assertEqual(ready_payload["mode"], "proxy")
+
+    def test_setup_is_ready_with_bundled_beta_and_no_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {
+                **os.environ,
+                "HAINA_API_KEY": "",
+                "WISHLIST_PROXY_URL": "",
+                "WISHLIST_PROXY_TOKEN": "",
+                "WISHLIST_BETA_FILE": "",
+            }
+            setup = self.run_cli("setup", "--format", "json", state_dir=tmp, env=env)
+            self.assertEqual(setup.returncode, 0, setup.stderr)
+            payload = json.loads(setup.stdout)
+            self.assertTrue(payload["ready"])
+            self.assertEqual(payload["mode"], "proxy")
+            self.assertEqual(payload["proxy_url"], "https://watch.huntingrin.com")
+            self.assertNotIn("invite-beta-", setup.stdout)
+
+    def test_own_key_wins_over_bundled_beta(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {
+                **os.environ,
+                "HAINA_API_KEY": "direct-test-key",
+                "WISHLIST_PROXY_URL": "",
+                "WISHLIST_PROXY_TOKEN": "",
+                "WISHLIST_BETA_FILE": "",
+            }
+            setup = self.run_cli("setup", "--format", "json", state_dir=tmp, env=env)
+            self.assertEqual(setup.returncode, 0, setup.stderr)
+            payload = json.loads(setup.stdout)
+            self.assertTrue(payload["ready"])
+            self.assertEqual(payload["mode"], "direct")
 
     def test_setup_accepts_direct_key(self):
         with tempfile.TemporaryDirectory() as tmp:

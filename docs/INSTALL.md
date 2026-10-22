@@ -2,23 +2,28 @@
 
 目标：朋友拿到一条安装命令后，不需要理解海纳、不需要手写配置文件，就能让任意 Agent 开始盯价。
 
-## 1. 推荐：邀请制一条命令
-
-维护者先给朋友一个邀请 token（见 `proxy/README.md`），然后朋友运行：
+## 1. 推荐：零配置一条命令
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/install.sh \
-  | bash -s -- --token invite-xxxx
+curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/install.sh | bash
 ```
 
 脚本会：
 
 1. 检查 Python 3.10+。
 2. 用 `npx skills` 安装 `skills/wishlist-watcher/` 到已检测到的 agent。
-3. 写入 `~/.wishlist-watcher/proxy.json`，权限 `0600`。
-4. 运行 `setup` 并打印就绪状态。
+3. 运行 `setup` 并打印就绪状态。
 
-如果不想让 token 留在 shell 历史里，可以先 `export WISHLIST_PROXY_TOKEN=invite-xxxx`，再运行 `bash install.sh`（不带 `--token`）。
+Skill 自带 `beta-proxy.json`（公共 beta token，非密钥），所以不需要维护者发任何东西。
+海纳 Key 和上游地址始终只在 Worker secret 里。
+
+### 用单独发的 token（可单独撤销）
+
+```bash
+curl -fsSL .../install.sh | bash -s -- --token invite-xxxx
+```
+
+也可以先 `export WISHLIST_PROXY_TOKEN=invite-xxxx`，再运行 `bash install.sh`，避免 token 进 shell 历史。
 
 装完直接对 agent 说：
 
@@ -88,7 +93,7 @@ npx skills update wishlist-watcher -g
 
 ## 3. 配置数据源
 
-### 邀请 token（推荐给朋友）
+### 邀请 token（可选，覆盖内置 beta）
 
 ```bash
 python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py login --token "invite-xxxx"
@@ -126,7 +131,7 @@ python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py setup --format json
 
 | `reason` | 含义 | 处理 |
 |---|---|---|
-| `needs_data_source` | 没有 token/Key | 运行 `login --token ...` 或设置 `HAINA_API_KEY` |
+| `needs_data_source` | 内置通道被移除且没有 token/Key | 运行 `login --token ...` 或设置 `HAINA_API_KEY` |
 | `proxy_config_invalid` | `proxy.json` 损坏 | 先 `logout`，再重新 `login` |
 | `python_too_old` | Python < 3.10 | 安装新 Python |
 | `state_dir_unwritable` | 状态目录不可写 | 用 `--state-dir` 换目录 |

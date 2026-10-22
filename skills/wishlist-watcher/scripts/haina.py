@@ -25,6 +25,11 @@ DISCOUNT_URL = "https://gw-openapi.zhidemai.com/hj-search/discount/v2"
 # `watch.py login --url ...` when self-hosting.
 DEFAULT_PROXY_URL = "https://watch.huntingrin.com"
 PROXY_CONFIG_FILENAME = "proxy.json"
+# Zero-config beta channel: shipped inside the skill so a friend can install and
+# use it without being handed a token.  It is a *public* credential by design —
+# treat it as an open beta key, not a secret.  Rotation happens server-side via
+# the Worker's PROXY_TOKENS secret.
+BUNDLED_PROXY_FILENAME = "beta-proxy.json"
 DEFAULT_TIMEOUT = 30
 MAX_RETRIES = 2
 RETRY_STATUS = {429, 500, 502, 503, 504}
@@ -146,6 +151,44 @@ def load_proxy_config(state_dir: Path | None = None) -> dict[str, str] | None:
     if not url or not token:
         raise HainaError(f"代理配置缺少 url 或 token: {path}")
     return {"url": url, "token": token}
+
+
+def load_bundled_proxy_config() -> dict[str, str] | None:
+    """Return the built-in beta proxy, if this build ships one."""
+
+    override = os.environ.get("WISHLIST_BETA_FILE", "").strip()
+    path = Path(override) if override else Path(__file__).resolve().parents[1] / BUNDLED_PROXY_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    url = str(data.get("url") or "").strip().rstrip("/")
+    token = str(data.get("token") or "").strip()
+    if not url or not token:
+        return None
+    return {"url": url, "token": token}
+
+
+def resolve_proxy_config(
+    state_dir: Path | None = None,
+    api_key: str | None = None,
+) -> dict[str, str] | None:
+    """Pick the transport: explicit config > own Haina key > bundled beta.
+
+    A user who configured an invite token, or who has their own Haina key,
+    always wins over the bundled public beta channel.
+    """
+
+    proxy = load_proxy_config(state_dir)
+    if proxy is not None:
+        return proxy
+    if api_key:
+        return None
+    return load_bundled_proxy_config()
 
 
 def save_proxy_config(state_dir: Path, url: str, token: str) -> Path:
@@ -400,7 +443,7 @@ def product_search(
     query = query.strip()
     if not query:
         raise HainaError("商品搜索词不能为空")
-    proxy = load_proxy_config(state_dir)
+    proxy = resolve_proxy_config(state_dir, api_key)
     if proxy is None and not api_key:
         raise HainaError("没有配置 HAINA_API_KEY 或代理")
     size = max(1, min(int(size), 10 if proxy is not None else 20))
@@ -430,7 +473,7 @@ def discount_search(
     query = query.strip()
     if not query:
         raise HainaError("商品搜索词不能为空")
-    proxy = load_proxy_config(state_dir)
+    proxy = resolve_proxy_config(state_dir, api_key)
     if proxy is None and not api_key:
         raise HainaError("没有配置 HAINA_API_KEY 或代理")
     size = max(1, min(int(size), 10))

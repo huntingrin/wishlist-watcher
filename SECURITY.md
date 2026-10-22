@@ -21,6 +21,17 @@
 - Worker 日志不记录 token、Key、完整 query。
 - 代理只在内部测试使用；公开运营前需确认海纳授权、隐私政策和计费。
 
+## 内置 beta token 是公开的
+
+`skills/wishlist-watcher/beta-proxy.json` 里有一个 token，随 Skill 一起分发。它**不是密钥**：
+
+- 它的作用只是让朋友免配置，任何人从公开仓库都能拿到。
+- 它能做的事只有一件事：调用 `/v1/product/search` 和 `/v1/discount/search`。
+- 海纳 Key 和上游地址仍然只在 Worker secret 里，不会随仓库泄露。
+- 防线是服务端的日上限（`DAILY_LIMIT`）和全局 QPS（`GLOBAL_QPS`）；超出后返回 429。
+- 发现被滥用时轮换：改 Worker 的 `PROXY_TOKENS` secret → 更新 `beta-proxy.json` → 发版。
+  旧 token 立即失效，已装 Skill 的用户重新 `npx skills add` 即可拿到新 token。
+
 ## 报告问题
 
 请通过 GitHub Security Advisory 私下报告，不要在公开 Issue 中粘贴 Key、token 或完整请求头。

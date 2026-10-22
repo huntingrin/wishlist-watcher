@@ -18,14 +18,15 @@ INSTALL_SKILL=1
 usage() {
   cat <<'EOF'
 用法：
-  install.sh --token <邀请 token> [--url <代理地址>] [--repo <owner/repo|本地路径>]
+  install.sh
+  install.sh --token <邀请 token>        # 可选：覆盖内置的 beta 通道
   install.sh --help
 
 选项：
-  --token  邀请 token（必填；也可以先设置 WISHLIST_PROXY_TOKEN）
-  --url    自建代理地址；默认使用内置地址
+  --token  邀请 token（可选；不填就用 skill 内置的 beta 通道）
+  --url    自建代理地址；需要同时给 --token
   --repo   技能来源，默认 huntingrin/wishlist-watcher
-  --no-agent-install  只写代理配置，不安装 skill
+  --no-agent-install  只安装 skill，不写代理配置
 EOF
 }
 
@@ -71,8 +72,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$TOKEN" ]]; then
-  echo "缺少邀请 token。用法：install.sh --token <邀请 token>" >&2
+if [[ -n "$URL" && -z "$TOKEN" ]]; then
+  echo "--url 需要同时提供 --token" >&2
   exit 2
 fi
 
@@ -137,11 +138,15 @@ if [[ -z "$SKILL_DIR" ]]; then
   exit 1
 fi
 
-LOGIN_ARGS=(login --token "$TOKEN" --format json)
-if [[ -n "$URL" ]]; then
-  LOGIN_ARGS+=(--url "$URL")
+if [[ -n "$TOKEN" ]]; then
+  LOGIN_ARGS=(login --token "$TOKEN" --format json)
+  if [[ -n "$URL" ]]; then
+    LOGIN_ARGS+=(--url "$URL")
+  fi
+  python3 "$SKILL_DIR/scripts/watch.py" "${LOGIN_ARGS[@]}" >/dev/null
+else
+  echo "使用 skill 内置的 beta 通道，无需额外配置。"
 fi
-python3 "$SKILL_DIR/scripts/watch.py" "${LOGIN_ARGS[@]}" >/dev/null
 
 echo
 echo "安装完成：$SKILL_DIR"

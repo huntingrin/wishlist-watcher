@@ -19,7 +19,7 @@ python3 <skill-dir>/scripts/watch.py setup --format json
 
 - `ready=true`：继续下面的欢迎语流程，可以正常建档查价。
 - `ready=false`：只执行 `next_action.command`，把 `next_action.message` 告诉用户；**不要**假装已经能查价。
-  - `reason=needs_data_source`：向用户要邀请 token，然后运行 `login --token <token>`；有海纳 Key 的用户可改用 `export HAINA_API_KEY=...`。
+  - `reason=needs_data_source`：说明这个版本没有可用通道，让用户找维护者；有海纳 Key 的用户可改用 `export HAINA_API_KEY=...`。
   - `reason=proxy_config_invalid`：先 `logout`，再重新 `login`。
   - `reason=python_too_old` / `state_dir_unwritable`：按 `next_action` 修复。
 - 修复后重新运行 `setup`，直到 `ready=true`。
@@ -42,7 +42,10 @@ python3 <skill-dir>/scripts/watch.py welcome --format json
 
 **直连海纳**：用户自己的 `HAINA_API_KEY`，适合本地/开发者。
 
-**内测代理**：用户只拿邀请 token，不接触海纳 Key：
+**内置 beta 通道**（默认）：Skill 自带 `beta-proxy.json`，装完 `setup` 就是 `ready=true`，
+用户不需要 token、不需要任何配置。里面的 token 是公开的 beta 凭证，不是密钥。
+
+**可选：单独发的邀请 token**（可单独撤销，优先于 beta 通道）：
 
 ```bash
 python3 <skill-dir>/scripts/watch.py login --token "<邀请 token>"
@@ -50,9 +53,10 @@ python3 <skill-dir>/scripts/watch.py login --token "<邀请 token>"
 
 - 内置代理地址，正常只需 token；自建代理才加 `--url`。
 - token 保存到 `~/.wishlist-watcher/proxy.json`（0600），不要回显、不要写进对话。
+- 优先级：环境变量 > `proxy.json` > 自己的 `HAINA_API_KEY` > 内置 beta。
 - `doctor` 会显示 `mode: proxy` 或 `mode: direct`。
 - 删除配置：`python3 <skill-dir>/scripts/watch.py logout`。
-- 公开仓库只包含代理代码，不包含任何 Key/token。
+- 公开仓库包含代理代码和公开 beta token；海纳 Key 与上游地址永远只在 Worker secret 里。
 
 ## 用户怎么说
 

@@ -215,3 +215,31 @@ npx wrangler deploy --dry-run --outdir dist
 - `login --token ...` 输出不回显 token。
 
 仍未验证：公网代理可达性（当前开发网络访问 `*.workers.dev` 超时）；跨 Claude Code / Codex 真机安装。
+
+## 零配置 beta 通道
+
+日期：2026-10-22
+
+动机：朋友不该被要求「先找维护者要一个 token」。改为 Skill 内置公共 beta token。
+
+- 新增 `skills/wishlist-watcher/beta-proxy.json`（url + token），随 `npx skills` 一起安装。
+- 优先级：`WISHLIST_PROXY_*` 环境变量 > `~/.wishlist-watcher/proxy.json` > 自己的 `HAINA_API_KEY` > 内置 beta。
+  有自己 Key 的开发者不会被自动切到代理。
+- `install.sh` / `install.ps1` 的 `--token` 改为可选；不带 token 时不写 `proxy.json`。
+- Worker 侧新增 `public-beta` token 到 `PROXY_TOKENS`，与邀请 token 共存。
+- 测试数：37（新增「零配置即为 ready」和「自有 Key 优先于内置 beta」两条）。
+
+验证（临时 `HOME` 模拟朋友机器）：
+
+```bash
+HOME=$(mktemp -d) bash install.sh --repo .
+```
+
+- `npx skills` 装到 `~/.agents/skills/wishlist-watcher`；
+- 没有生成 `~/.wishlist-watcher/proxy.json`（符合零配置预期）；
+- `setup` 返回 `ready=true`、`mode=proxy`、`proxy_url=https://watch.huntingrin.com`；
+- 同一份安装执行 `add "索尼 A7C2" --target 9000 --pick 2` → `w_2d72ca6a7100`，
+  `check` 触发 `target`，到手 ¥8,590.95。
+
+风险与边界：内置 token 是公开凭证，任何人可从这个仓库拿到并使用；防线只有 Worker 的
+`DAILY_LIMIT=2000` 和 `GLOBAL_QPS=4`。轮换方式见 `SECURITY.md`。
