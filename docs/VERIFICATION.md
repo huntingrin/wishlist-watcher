@@ -243,3 +243,16 @@ HOME=$(mktemp -d) bash install.sh --repo .
 
 风险与边界：内置 token 是公开凭证，任何人可从这个仓库拿到并使用；防线只有 Worker 的
 `DAILY_LIMIT=2000` 和 `GLOBAL_QPS=4`。轮换方式见 `SECURITY.md`。
+
+## 仓库转私有与 token 轮换
+
+日期：2026-10-22
+
+- `gh repo edit --visibility private`：`huntingrin/wishlist-watcher` 已私有。
+- 密钥审计：
+  - 用 `.env.local` 里的海纳 Key 全量搜索工作区与 `git rev-list --all` 的每个 commit：**无命中**。
+  - 工作区出现的 `invite-` 只匹配测试占位符、文档示例和 `beta-proxy.json`。
+- 轮换：旧 beta token 在公开窗口存在过约 20 分钟，已从 Worker 的 `PROXY_TOKENS` 移除，
+  新 token 写入 `beta-proxy.json`；验证旧 token 401、新 token 200。
+- 影响：`raw.githubusercontent.com` 匿名访问返回 404，`npx skills add` 需要 GitHub 身份，
+  README/INSTALL 已改为「clone 后 `bash install.sh --repo .`」，并补充三种私有分发方式。

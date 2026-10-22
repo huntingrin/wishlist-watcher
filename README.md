@@ -15,19 +15,24 @@
 
 可行性调研见 [feasibility.md](./feasibility.md)。
 
-## 给朋友：一条命令安装
+## 安装
 
-不用发 token，也不用配任何东西：
+> ⚠️ 仓库目前是**私有**的。`raw.githubusercontent.com` 和 `npx skills add` 都需要有权限的 GitHub 身份，
+> 匿名的一行命令不可用。分发方式见下面「私有仓库怎么发给朋友」。
+
+已经 clone 仓库时：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/install.sh | bash
+bash install.sh --repo .
 ```
 
-这条命令会：
+不用发 token，也不用配任何东西——Skill 自带 beta 通道。
+
+脚本会：
 
 1. 检查 Python 3.10+
 2. 用 `npx skills` 把 Skill 装到已检测到的 agent（Claude Code / Codex / OpenCode / Cursor 等）
-3. 运行 `setup`，确认已就绪（走 Skill 内置的 beta 通道）
+3. 运行 `setup`，确认已就绪
 
 装完打开 agent，直接说：
 
@@ -35,15 +40,29 @@ curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/in
 帮我盯 索尼 A7C2，降到 8000 告诉我
 ```
 
-**关于内置 beta 通道**：`skills/wishlist-watcher/beta-proxy.json` 里有一个公共 beta token，
-它是**故意公开的**，不是密钥。海纳 Key 和上游地址始终只在 Worker secret 里。
-代价是任何人拿到仓库都能用这条通道，所以服务端有日上限和 QPS 保险丝，被滥用时直接轮换。
+**关于内置 beta 通道**：`skills/wishlist-watcher/beta-proxy.json` 里有一个 beta token。
+它不是海纳 Key，只是代理的通道凭证；海纳 Key 和上游地址始终只在 Worker secret 里。
+仓库私有后它不再公开，但**拿到 skill 目录的人都能看到**，所以它仍按"可轮换的通道凭证"对待：
+服务端有日上限和 QPS 保险丝，被滥用时轮换 `PROXY_TOKENS` 并更新该文件。
 
-想用自己单独发的 token（可单独撤销）：
+想用单独发的、可单独撤销的 token：
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --token invite-xxxx
+bash install.sh --repo . --token invite-xxxx
 ```
+
+### 私有仓库怎么发给朋友
+
+三条路，按省事程度：
+
+1. **加协作者**：把对方 GitHub 账号加为 read 权限，对方先 `gh auth login`，再
+   `npx skills add huntingrin/wishlist-watcher --skill wishlist-watcher -g -y`。
+   代价是对方能看到整个仓库。
+2. **发打包**：维护者把 `skills/wishlist-watcher/` 压成 zip 发给对方，解压到
+   `~/.agents/skills/wishlist-watcher/`（或对应宿主的 skills 目录）。
+   对方看不到仓库，但在本地能看到全部 skill 代码和 beta token。
+3. **发版到公开安装点**：保留私有源码，另建一个只含 skill 包的公开仓库或由 Worker
+   提供 `/install.sh` + 打好的包。工作量最大，但源码不外泄，且能集中控制 token。
 
 Windows：
 
