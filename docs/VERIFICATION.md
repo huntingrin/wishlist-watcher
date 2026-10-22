@@ -286,3 +286,18 @@ HOME=$(mktemp -d) bash install.sh --repo .
 | 手工 tester-1 token | 200 |
 | 客户端全新状态目录 `add` | 创建 `w_ea9c6b8f82c2`，生成 `session.json`（0600） |
 | 测试套件 | 41 通过（新增 4 条：内置配置无 token、通行证缓存、过期续签、401 续签一次） |
+
+## 仓库改回公开
+
+日期：2026-10-23
+
+通行证改为云端签发后，仓库里不再有任何可重放的凭证，私有的收益只剩"不公开代码"。
+为了让朋友回到一条命令安装，改回 public。
+
+- `gh repo edit --visibility public`：`huntingrin/wishlist-watcher` 已公开。
+- 公开前置检查：
+  - 海纳 Key：工作区与全部 commit 无命中（此前已扫）。
+  - `beta-proxy.json`：只有 `url` 字段，无 token。
+  - 历史里残留的旧静态 beta token 已验证为 401（`PROXY_TOKENS` 中已删除）。
+- 匿名验证：`raw.githubusercontent.com/.../install.sh` 200，`beta-proxy.json` 可读且无凭证。
+- README / INSTALL 恢复一行命令安装，并说明凭证是运行时申请的。

@@ -15,18 +15,13 @@
 
 可行性调研见 [feasibility.md](./feasibility.md)。
 
-## 安装
-
-> ⚠️ 仓库目前是**私有**的。`raw.githubusercontent.com` 和 `npx skills add` 都需要有权限的 GitHub 身份，
-> 匿名的一行命令不可用。分发方式见下面「私有仓库怎么发给朋友」。
-
-已经 clone 仓库时：
+## 给朋友：一条命令安装
 
 ```bash
-bash install.sh --repo .
+curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/install.sh | bash
 ```
 
-不用发 token，也不用配任何东西——Skill 自带 beta 通道。
+不用发 token，不用配任何东西，也不用有 GitHub 账号。
 
 脚本会：
 
@@ -43,27 +38,14 @@ bash install.sh --repo .
 **凭证是怎么来的**：仓库里**没有任何 token**。`beta-proxy.json` 只有代理地址；
 客户端第一次查价时向 `POST /v1/session` 申请一张 30 天有效的签名通行证，
 存到 `~/.wishlist-watcher/session.json`（0600），过期或 401 时自动续。
-服务端凭 `SESSION_SECRET` 验签，不存数据库；需要时轮换该 secret 即可让所有通行证立即失效。
-海纳 Key 和上游地址始终只在 Worker secret 里。
+服务端凭 `SESSION_SECRET` 验签，不存数据库；轮换该 secret 可让所有通行证立即失效。
+海纳 Key 和上游地址始终只在 Worker secret 里，公开仓库里没有。
 
 想用单独发的、可单独撤销的 token：
 
 ```bash
 bash install.sh --repo . --token invite-xxxx
 ```
-
-### 私有仓库怎么发给朋友
-
-三条路，按省事程度：
-
-1. **加协作者**：把对方 GitHub 账号加为 read 权限，对方先 `gh auth login`，再
-   `npx skills add huntingrin/wishlist-watcher --skill wishlist-watcher -g -y`。
-   代价是对方能看到整个仓库。
-2. **发打包**：维护者把 `skills/wishlist-watcher/` 压成 zip 发给对方，解压到
-   `~/.agents/skills/wishlist-watcher/`（或对应宿主的 skills 目录）。
-   对方看不到仓库，但在本地能看到全部 skill 代码和 beta token。
-3. **发版到公开安装点**：保留私有源码，另建一个只含 skill 包的公开仓库或由 Worker
-   提供 `/install.sh` + 打好的包。工作量最大，但源码不外泄，且能集中控制 token。
 
 Windows：
 

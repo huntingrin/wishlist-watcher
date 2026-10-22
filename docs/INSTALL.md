@@ -14,8 +14,9 @@ curl -fsSL https://raw.githubusercontent.com/huntingrin/wishlist-watcher/main/in
 2. 用 `npx skills` 安装 `skills/wishlist-watcher/` 到已检测到的 agent。
 3. 运行 `setup` 并打印就绪状态。
 
-Skill 自带 `beta-proxy.json`（公共 beta token，非密钥），所以不需要维护者发任何东西。
-海纳 Key 和上游地址始终只在 Worker secret 里。
+`beta-proxy.json` 里只有代理地址，没有任何 token。客户端首次查价时向 `POST /v1/session`
+申请一张 30 天有效的签名通行证，存到 `~/.wishlist-watcher/session.json`（0600）。
+所以不需要维护者发任何东西；海纳 Key 和上游地址始终只在 Worker secret 里。
 
 ### 用单独发的 token（可单独撤销）
 
@@ -93,7 +94,7 @@ npx skills update wishlist-watcher -g
 
 ## 3. 配置数据源
 
-### 邀请 token（可选，覆盖内置 beta）
+### 邀请 token（可选，覆盖自动签发的通行证）
 
 ```bash
 python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py login --token "invite-xxxx"
@@ -164,8 +165,8 @@ python3 ~/.agents/skills/wishlist-watcher/scripts/watch.py doctor --network
 
 ### 提示 token 无效（401）
 
-- 找维护者确认 token 还在 `PROXY_TOKENS` 里。
-- 重新运行 `login --token ...`。
+- 如果是自己设的静态 token，找维护者确认它还在 `PROXY_TOKENS` 里。
+- 否则删掉 `~/.wishlist-watcher/session.json`，下一次查价会自动重新申请。
 - 不要反复重试，401 不会自己恢复。
 
 ### 跨 agent 状态不连续
