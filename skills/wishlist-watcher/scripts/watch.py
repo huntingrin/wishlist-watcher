@@ -51,7 +51,7 @@ from store import (  # noqa: E402
     state_path,
 )
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
 WELCOME_TEXT = """我可以帮你“盯价”：
 1. 说“帮我盯 <商品>，降到 <目标价> 告诉我”

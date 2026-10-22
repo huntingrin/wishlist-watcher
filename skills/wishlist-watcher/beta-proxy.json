@@ -1,5 +1,4 @@
 {
-  "_comment": "Beta channel shipped with the skill. The repository is private, so this token is not public; it is still only a channel credential, never the Haina key. Rotate by updating the Worker PROXY_TOKENS secret and bumping this file.",
-  "url": "https://watch.huntingrin.com",
-  "token": "invite-beta-YFSQUikrRscYsCqZe6yuG6OjQg57vPYn"
+  "_comment": "Beta transport for the skill. There is deliberately NO token here: the client asks the proxy for a short-lived session token on first use and stores it under ~/.wishlist-watcher/session.json (0600). Nothing in this repository can be replayed by a third party.",
+  "url": "https://watch.huntingrin.com"
 }

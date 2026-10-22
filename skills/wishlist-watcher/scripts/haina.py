@@ -16,6 +16,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -168,8 +169,9 @@ def load_bundled_proxy_config() -> dict[str, str] | None:
         return None
     url = str(data.get("url") or "").strip().rstrip("/")
     token = str(data.get("token") or "").strip()
-    if not url or not token:
+    if not url:
         return None
+    # No token means "request a short-lived session from the proxy at run time".
     return {"url": url, "token": token}
 
 
@@ -189,6 +191,134 @@ def resolve_proxy_config(
     if api_key:
         return None
     return load_bundled_proxy_config()
+
+
+SESSION_FILENAME = "session.json"
+
+
+def session_path(state_dir: Path) -> Path:
+    return state_dir / SESSION_FILENAME
+
+
+def _read_session(state_dir: Path) -> dict[str, Any]:
+    path = session_path(state_dir)
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_session(state_dir: Path, data: dict[str, Any]) -> None:
+    state_dir.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=".session-", suffix=".tmp", dir=str(state_dir))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        os.chmod(temp_name, 0o600)
+        os.replace(temp_name, session_path(state_dir))
+    except BaseException:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
+
+
+def _client_id(state_dir: Path) -> str:
+    data = _read_session(state_dir)
+    client_id = str(data.get("client_id") or "").strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{8,64}", client_id):
+        return client_id
+    return uuid.uuid4().hex
+
+
+def _session_is_fresh(state_dir: Path, url: str) -> str | None:
+    data = _read_session(state_dir)
+    if str(data.get("url") or "").rstrip("/") != url:
+        return None
+    token = str(data.get("token") or "")
+    expires_at = str(data.get("expires_at") or "")
+    if not token or not expires_at:
+        return None
+    try:
+        deadline = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=timezone.utc)
+    if deadline - datetime.now(timezone.utc) < timedelta(minutes=2):
+        return None
+    return token
+
+
+def ensure_proxy_token(
+    state_dir: Path | None,
+    url: str,
+    *,
+    timeout: int = DEFAULT_TIMEOUT,
+    force: bool = False,
+) -> str:
+    """Return a bearer token for the proxy, asking the proxy for one if needed.
+
+    The repository ships no credential.  On first use the client posts its
+    stable client_id to /v1/session and receives a signed, expiring token which
+    is stored under the user's state directory (0600).
+    """
+
+    if state_dir is None:
+        try:
+            from store import default_state_dir
+        except Exception:
+            state_dir = Path.home() / ".wishlist-watcher"
+        else:
+            state_dir = default_state_dir()
+    state_dir = Path(state_dir)
+    url = url.rstrip("/")
+
+    if not force:
+        cached = _session_is_fresh(state_dir, url)
+        if cached:
+            return cached
+
+    client_id = _client_id(state_dir)
+    body = json.dumps({"client_id": client_id}).encode("utf-8")
+    request = urllib.request.Request(
+        f"{url}/v1/session",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "wishlist-watcher/0.5",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        if exc.code == 429:
+            raise HainaError("申请代理通行证太快，请稍后再试", status=429, body=raw[:300]) from exc
+        raise HainaError(f"代理拒绝了通行证申请（HTTP {exc.code}）", status=exc.code, body=raw[:300]) from exc
+    except urllib.error.URLError as exc:
+        raise HainaError(f"无法连接代理申请通行证：{exc.reason}") from exc
+    except TimeoutError as exc:
+        raise HainaError("申请代理通行证超时") from exc
+
+    token = str((payload or {}).get("token") or "")
+    expires_at = str((payload or {}).get("expires_at") or "")
+    if not token or not expires_at:
+        raise HainaError("代理返回的通行证格式异常")
+
+    _write_session(
+        state_dir,
+        {"url": url, "client_id": client_id, "token": token, "expires_at": expires_at},
+    )
+    return token
 
 
 def save_proxy_config(state_dir: Path, url: str, token: str) -> Path:
@@ -297,21 +427,28 @@ def _post_json(
     proxy: dict[str, str] | None = None,
     timeout: int = DEFAULT_TIMEOUT,
     retries: int = MAX_RETRIES,
+    state_dir: Path | None = None,
 ) -> dict[str, Any]:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "wishlist-watcher/0.3",
+        "User-Agent": "wishlist-watcher/0.5",
     }
+    token = ""
     if proxy is not None:
-        headers["Authorization"] = f"Bearer {proxy['token']}"
+        token = proxy.get("token", "")
+        if not token:
+            token = ensure_proxy_token(state_dir, proxy["url"], timeout=timeout)
     else:
         headers["x-api-key"] = api_key or ""
 
     retry_status = PROXY_RETRY_STATUS if proxy is not None else RETRY_STATUS
     last_error: Exception | None = None
+    refreshed = False
     for attempt in range(retries + 1):
+        if proxy is not None:
+            headers["Authorization"] = f"Bearer {token}"
         request = urllib.request.Request(url, data=body, headers=headers, method="POST")
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -327,8 +464,12 @@ def _post_json(
         except urllib.error.HTTPError as exc:
             raw = exc.read().decode("utf-8", errors="replace")
             if proxy is not None:
+                if exc.code == 401 and token.startswith("w1.") and not refreshed:
+                    refreshed = True
+                    token = ensure_proxy_token(state_dir, proxy["url"], timeout=timeout, force=True)
+                    continue
                 if exc.code == 401:
-                    message = "代理邀请 token 无效或缺失，请重新登录"
+                    message = "代理凭证无效或缺失，请重新登录"
                 elif exc.code == 429:
                     message = "代理限流或达到日上限，请稍后再试"
                 elif exc.code == 502:
@@ -455,7 +596,7 @@ def product_search(
         "size": size,
     }
     url = f"{proxy['url']}/v1/product/search" if proxy is not None else PRODUCT_URL
-    data = _post_json(url, payload, api_key, proxy=proxy, timeout=timeout)
+    data = _post_json(url, payload, api_key, proxy=proxy, timeout=timeout, state_dir=state_dir)
     return [normalize_product_row(row) for row in _extract_rows(data)]
 
 
@@ -485,7 +626,7 @@ def discount_search(
         "size": size,
     }
     url = f"{proxy['url']}/v1/discount/search" if proxy is not None else DISCOUNT_URL
-    data = _post_json(url, payload, api_key, proxy=proxy, timeout=timeout)
+    data = _post_json(url, payload, api_key, proxy=proxy, timeout=timeout, state_dir=state_dir)
     return [normalize_discount_row(row) for row in _extract_rows(data)]
 
 

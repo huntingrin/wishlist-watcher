@@ -256,3 +256,33 @@ HOME=$(mktemp -d) bash install.sh --repo .
   新 token 写入 `beta-proxy.json`；验证旧 token 401、新 token 200。
 - 影响：`raw.githubusercontent.com` 匿名访问返回 404，`npx skills add` 需要 GitHub 身份，
   README/INSTALL 已改为「clone 后 `bash install.sh --repo .`」，并补充三种私有分发方式。
+
+## 改为云端签发通行证（仓库零凭证）
+
+日期：2026-10-23
+
+背景：随仓库分发的静态 beta token 既不能真正防滥用（用户可以扒出来），又让仓库里存在一个
+可重放的凭证。改为客户端运行时向代理申请短期通行证。
+
+- Worker 新增 `POST /v1/session`：接收 `client_id`，返回
+  `w1.<base64url(clientId.exp)>.<base64url(hmac)>`，默认 30 天；无状态，不落库。
+- 新增 secret `SESSION_SECRET`；`SESSION_TTL_DAYS=30`、`SESSION_PER_HOUR=10` 写入 `wrangler.toml`。
+- `/v1/session` 按 IP 限速（Durable Object 存储每小时计数）。
+- 鉴权改为：`w1.` 前缀走验签；否则回落到 `PROXY_TOKENS` 静态 token。
+- 客户端：`beta-proxy.json` 删掉 token 字段；首次调用 `ensure_proxy_token()` 申请并写入
+  `~/.wishlist-watcher/session.json`（0600），过期前 2 分钟或遇 401 自动续签。
+- 移除 `PROXY_TOKENS` 里的 `public-beta` 静态 token。
+
+验证：
+
+| 用例 | 结果 |
+|---|---|
+| `GET /healthz` | `{"ok":true,"session":true}` |
+| 无凭证 POST 搜索 | 401 |
+| `POST /v1/session` | 返回 `w1.…`，81 字符 |
+| 用该通行证搜索 | 200 |
+| 伪造签名 | 401 |
+| 旧静态 beta token | 401 |
+| 手工 tester-1 token | 200 |
+| 客户端全新状态目录 `add` | 创建 `w_ea9c6b8f82c2`，生成 `session.json`（0600） |
+| 测试套件 | 41 通过（新增 4 条：内置配置无 token、通行证缓存、过期续签、401 续签一次） |

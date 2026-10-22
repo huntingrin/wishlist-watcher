@@ -14,8 +14,28 @@ Skill  →  Bearer <invite-token>  →  Worker  →  x-api-key  →  海纳
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/healthz` | 健康检查，无鉴权 |
-| POST | `/v1/product/search` | 转发到海纳 `product/v1` |
-| POST | `/v1/discount/search` | 转发到海纳 `hj-search/discount/v2` |
+| POST | `/v1/session` | 签发短期通行证（按 IP 限速，无凭证） |
+| POST | `/v1/product/search` | 转发到海纳 `product/v1`（需 Bearer） |
+| POST | `/v1/discount/search` | 转发到海纳 `hj-search/discount/v2`（需 Bearer） |
+
+### 凭证模型
+
+仓库里不放任何 token。客户端首次调用前先 `POST /v1/session`：
+
+```json
+{"client_id": "本机随机 id"}
+```
+
+响应：
+
+```json
+{"token": "w1.<payload>.<hmac>", "expires_at": "2026-11-22T00:00:00Z", "ttl_seconds": 2592000}
+```
+
+- token 是无状态签名（HMAC-SHA256，`SESSION_SECRET`），服务端不存库。
+- 默认 30 天，`SESSION_TTL_DAYS` 可调；`SESSION_PER_HOUR` 控制每 IP 每小时可申请次数。
+- 轮换 `SESSION_SECRET` 会让所有已签发的通行证立即失效。
+- `PROXY_TOKENS` 里的静态 token 仍然可用，优先级高于通行证，适合需要单独吊销的人。
 
 安全阀：
 
@@ -35,7 +55,7 @@ https://wishlist-watcher-proxy.huntingrin.workers.dev   # 仅维护者调试
 
 已设置 `HAINA_API_KEY`、`PROXY_TOKENS` 两个 secret。
 其中有一个 token 标为 `public-beta`，写在 `skills/wishlist-watcher/beta-proxy.json` 里随仓库公开，
-目的是让朋友零配置安装。它只是通道凭证，不是密钥。
+目的是让朋友零配置安装。它只用于需要单独吊销的人；默认路径是 `/v1/session` 动态签发。
 
 大陆网络会阻断 `*.workers.dev`（DNS 投毒 + TLS SNI 重置），所以内测统一走
 `watch.huntingrin.com`；`workers_dev` 保留只为维护者挂代理时调试。

@@ -20,3 +20,6 @@ new_sqlite_classes = ["RateLimiter"]
 DAILY_LIMIT = "2000"
 GLOBAL_QPS = "4"
 CACHE_TTL_SECONDS = "300"
+# Short-lived session credentials issued by POST /v1/session.
+SESSION_TTL_DAYS = "30"
+SESSION_PER_HOUR = "10"

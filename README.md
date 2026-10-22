@@ -40,10 +40,11 @@ bash install.sh --repo .
 帮我盯 索尼 A7C2，降到 8000 告诉我
 ```
 
-**关于内置 beta 通道**：`skills/wishlist-watcher/beta-proxy.json` 里有一个 beta token。
-它不是海纳 Key，只是代理的通道凭证；海纳 Key 和上游地址始终只在 Worker secret 里。
-仓库私有后它不再公开，但**拿到 skill 目录的人都能看到**，所以它仍按"可轮换的通道凭证"对待：
-服务端有日上限和 QPS 保险丝，被滥用时轮换 `PROXY_TOKENS` 并更新该文件。
+**凭证是怎么来的**：仓库里**没有任何 token**。`beta-proxy.json` 只有代理地址；
+客户端第一次查价时向 `POST /v1/session` 申请一张 30 天有效的签名通行证，
+存到 `~/.wishlist-watcher/session.json`（0600），过期或 401 时自动续。
+服务端凭 `SESSION_SECRET` 验签，不存数据库；需要时轮换该 secret 即可让所有通行证立即失效。
+海纳 Key 和上游地址始终只在 Worker secret 里。
 
 想用单独发的、可单独撤销的 token：
 

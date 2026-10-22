@@ -21,18 +21,25 @@
 - Worker 日志不记录 token、Key、完整 query。
 - 代理只在内部测试使用；公开运营前需确认海纳授权、隐私政策和计费。
 
-## 内置 beta token 不是密钥
+## 仓库里没有凭证
 
-`skills/wishlist-watcher/beta-proxy.json` 里有一个 token，随 Skill 一起分发。仓库已设为私有，
-但它仍然**不是密钥**：
+`skills/wishlist-watcher/beta-proxy.json` 只有代理地址，**不含任何 token**。
 
-- 它的作用只是让朋友免配置；拿到 skill 目录的人都能看到它。
-- 它能做的事只有一件事：调用 `/v1/product/search` 和 `/v1/discount/search`。
-- 海纳 Key 和上游地址仍然只在 Worker secret 里，不会随仓库泄露。
-- 防线是服务端的日上限（`DAILY_LIMIT`）和全局 QPS（`GLOBAL_QPS`）；超出后返回 429。
-- 发现被滥用时轮换：改 Worker 的 `PROXY_TOKENS` secret → 更新 `beta-proxy.json` → 提交。
-  旧 token 立即失效，已装 Skill 的用户重新安装或手动更新该文件即可。
-- 轮换记录（2026-10-22）：仓库转私有后立即换过一次 beta token，因为旧值在公开状态下存在过。
+客户端首次使用时的流程：
+
+1. `POST /v1/session {"client_id": "<本地随机 id>"}`
+2. Worker 校验 `SESSION_SECRET`，签发 `w1.<payload>.<hmac>` 形式的通行证（默认 30 天）
+3. 客户端存到 `~/.wishlist-watcher/session.json`（0600），过期或 401 时自动续签
+
+因此：
+
+- 仓库、git 历史、skill 包里都没有可重放的凭证。拿到代码的人无法直接调用代理。
+- 通行证是无状态签名，服务端不存库；`SESSION_SECRET` 轮换即全部失效。
+- `/v1/session` 按 IP 限速（默认 10 次/小时），防止被批量申请。
+- 海纳 Key 和上游地址仍然只在 Worker secret 里。
+- 旧的静态邀请 token（`PROXY_TOKENS`）保留，用于需要单独吊销的人；优先级高于通行证。
+- 记录（2026-10-23）：移除随仓库分发的静态 beta token，改为云端签发通行证；
+  旧静态值验证为 401。
 
 ## 报告问题
 

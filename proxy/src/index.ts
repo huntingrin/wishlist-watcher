@@ -14,11 +14,17 @@ interface Env {
   DAILY_LIMIT?: string;
   GLOBAL_QPS?: string;
   CACHE_TTL_SECONDS?: string;
+  /** Enables /v1/session. Without it the proxy only accepts static tokens. */
+  SESSION_SECRET?: string;
+  SESSION_TTL_DAYS?: string;
+  SESSION_PER_HOUR?: string;
   LIMITER: DurableObjectNamespace;
 }
 
 type TokenInfo = { token: string; label: string };
 
+const SESSION_PATH = "/v1/session";
+const SESSION_PREFIX = "w1.";
 const PRODUCT_PATH = "/v1/product/search";
 const DISCOUNT_PATH = "/v1/discount/search";
 const PRODUCT_UPSTREAM = "https://gw-openapi.zhidemai.com/product/v1";
@@ -45,8 +51,13 @@ export default {
         ok: true,
         service: "wishlist-watcher-proxy",
         mode: "internal-test",
+        session: Boolean(env.SESSION_SECRET),
         time: new Date().toISOString(),
       });
+    }
+
+    if (request.method === "POST" && url.pathname === SESSION_PATH) {
+      return issueSession(request, env);
     }
 
     if (request.method !== "POST") {
@@ -57,9 +68,9 @@ export default {
       return json({ error: "not_found" }, 404);
     }
 
-    const auth = authenticate(request, env);
+    const auth = await authenticate(request, env);
     if (!auth) {
-      return json({ error: "unauthorized", message: "邀请 token 缺失或无效" }, 401);
+      return json({ error: "unauthorized", message: "凭证缺失或无效" }, 401);
     }
 
     const rawBody = await request.text();
@@ -205,6 +216,32 @@ export class RateLimiter {
   async fetch(request: Request): Promise<Response> {
     if (request.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
 
+    if (new URL(request.url).pathname === "/session") {
+      let ticket: { ip?: string; limit?: number };
+      try {
+        ticket = (await request.json()) as { ip?: string; limit?: number };
+      } catch {
+        return json({ ok: false, error: "invalid_json" }, 400);
+      }
+      const ip = String(ticket.ip ?? "unknown").slice(0, 64);
+      const perHour = Math.max(1, Math.min(Number(ticket.limit) || 10, 1000));
+      const hour = Math.floor(Date.now() / 3_600_000);
+      const store =
+        (await this.state.storage.get<Record<string, { hour: number; count: number }>>("sessionIps")) ?? {};
+      const current = store[ip] && store[ip].hour === hour ? store[ip].count : 0;
+      if (current >= perHour) {
+        const retry = Math.max(1, Math.ceil(((hour + 1) * 3_600_000 - Date.now()) / 1000));
+        return json({ ok: false, retry_after: retry });
+      }
+      store[ip] = { hour, count: current + 1 };
+      const keys = Object.keys(store);
+      if (keys.length > 500) {
+        for (const key of keys) if (store[key].hour !== hour) delete store[key];
+      }
+      await this.state.storage.put("sessionIps", store);
+      return json({ ok: true });
+    }
+
     let body: { dailyLimit?: number; qps?: number };
     try {
       body = (await request.json()) as { dailyLimit?: number; qps?: number };
@@ -263,16 +300,134 @@ export class RateLimiter {
   }
 }
 
-function authenticate(request: Request, env: Env): TokenInfo | null {
+async function authenticate(request: Request, env: Env): Promise<TokenInfo | null> {
   const authorization = request.headers.get("authorization") ?? "";
   const token = authorization.toLowerCase().startsWith("bearer ")
     ? authorization.slice(7).trim()
     : (request.headers.get("x-proxy-token") ?? "").trim();
   if (!token) return null;
 
+  if (token.startsWith(SESSION_PREFIX)) {
+    return verifySession(token, env);
+  }
+
   const tokens = parseTokens(env.PROXY_TOKENS ?? "");
   const label = tokens.get(token);
   return label ? { token, label } : null;
+}
+
+/**
+ * Issues a short-lived session credential.  The client stores it locally; the
+ * repository ships no token at all.  Stateless on the server: the token is a
+ * signed (client id, expiry) pair, so no database is involved.
+ */
+async function issueSession(request: Request, env: Env): Promise<Response> {
+  const secret = (env.SESSION_SECRET ?? "").trim();
+  if (!secret) return json({ error: "session_disabled" }, 501);
+
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const perHour = intFromEnv(env.SESSION_PER_HOUR, 10);
+  const limiter = env.LIMITER.get(env.LIMITER.idFromName("global"));
+  const limitResponse = await limiter.fetch("https://limiter/session", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ip, limit: perHour }),
+  });
+  const limit = (await limitResponse.json()) as { ok: boolean; retry_after?: number };
+  if (!limit.ok) {
+    return json(
+      { error: "rate_limited", retry_after: limit.retry_after ?? 60 },
+      429,
+      { "retry-after": String(limit.retry_after ?? 60) },
+    );
+  }
+
+  let clientId = "";
+  const raw = await request.text();
+  if (raw.length > 512) return json({ error: "payload_too_large" }, 413);
+  if (raw) {
+    try {
+      const body = JSON.parse(raw) as { client_id?: unknown };
+      if (typeof body.client_id === "string") clientId = body.client_id.trim();
+    } catch {
+      return json({ error: "invalid_json" }, 400);
+    }
+  }
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(clientId)) {
+    clientId = crypto.randomUUID().replace(/-/g, "");
+  }
+
+  const ttlDays = Math.max(1, Math.min(intFromEnv(env.SESSION_TTL_DAYS, 30), 365));
+  const expiresAt = Math.floor(Date.now() / 1000) + ttlDays * 86_400;
+  const payload = `${clientId}.${expiresAt}`;
+  const token = `${SESSION_PREFIX}${b64url(payload)}.${await hmacBase64url(secret, payload)}`;
+  return json({
+    token,
+    expires_at: new Date(expiresAt * 1000).toISOString(),
+    ttl_seconds: ttlDays * 86_400,
+  });
+}
+
+async function verifySession(token: string, env: Env): Promise<TokenInfo | null> {
+  const secret = (env.SESSION_SECRET ?? "").trim();
+  if (!secret || !token.startsWith(SESSION_PREFIX)) return null;
+
+  const rest = token.slice(SESSION_PREFIX.length);
+  const split = rest.lastIndexOf(".");
+  if (split <= 0) return null;
+
+  const payload = unb64url(rest.slice(0, split));
+  const signature = rest.slice(split + 1);
+  if (!payload || !signature) return null;
+
+  const expected = await hmacBase64url(secret, payload);
+  if (!timingSafeEqual(signature, expected)) return null;
+
+  const [clientId, expiresRaw] = payload.split(".");
+  const expiresAt = Number(expiresRaw);
+  if (!clientId || !Number.isFinite(expiresAt) || expiresAt * 1000 < Date.now()) return null;
+
+  return { token, label: `session:${clientId.slice(0, 8)}` };
+}
+
+function b64url(input: string): string {
+  const bytes = new TextEncoder().encode(input);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function unb64url(input: string): string | null {
+  try {
+    const padded = input.replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+async function hmacBase64url(secret: string, message: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
+  let binary = "";
+  for (const byte of new Uint8Array(signature)) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 function parseTokens(raw: string): Map<string, string> {
